@@ -1,59 +1,67 @@
 # EchoPet DALL-E 3 (gpt-image) 提示词指南 (方案B)
 
-本指南用于生成 EchoPet 方案B（**复古随身听/像素蒸汽波 Retro Lo-Fi / Pixel Vaporwave**）的 UI 设计图和角色资产。
+本指南用于生成 EchoPet 方案B（**宝可梦精灵风 / Pokémon Creature Style**）的 UI 设计图和角色资产。
+
+> **角色设计核心**：方案B的桌宠是一个**圆润可爱的小精灵**，类似于宝可梦 / 洛克王国的风格——软糯的圆形身体、大而明亮的眼睛、小巧的耳朵、戴着耳机。整体感觉是温暖治愈的，而不是恐怖的。
 
 ---
 
 ## 1. UI 界面设计图生成提示词 (UI Mockups)
 
+**【生图尺寸建议】**
+- 生成 UI 面板建议选择 **`1024x1536` (竖屏)** 或 **`1024x1024` (默认方形)**。
+
 ### 1.1 主输入与音乐推荐面板 (Input & Music Response Panel)
 
-> **目标**：生成一个看起来像复古随身听、带有实体按钮质感和复古配色的 UI 面板。
+> **目标**：生成一个复古唱片机 / 宝可梦精灵主题的温暖配色 UI 面板。
 
 **Prompt:**
 ```text
-A UI mockup for an emotional music AI desktop app named "EchoPet". The UI window is designed to look like a modern, minimalist retro Walkman or vintage synthesizer. The background color is a nostalgic creamy off-white (#F4F1EA). The design features "neo-brutalism" or retro UI elements with hard black shadows and thick borders.
+A UI mockup for an emotional music AI desktop app named "EchoPet". The UI window has a warm, cozy retro aesthetic, reminiscent of a vintage record player or a Pokemon Center. The background is a soft, creamy off-white (#F4F1EA). The design features rounded corners, soft shadows, and warm wood textures.
 
 The window is vertically divided. 
-Top section (Input): Looks like a cassette tape slot with a paper label serving as the text input area. Next to it is a prominent, tactile, chunky red circular "REC" (Record) button that looks like a physical mechanical button. A small red LED light is glowing next to it.
-Bottom section (Music Card): A retro music player display. A square lo-fi album cover on the left. On the right, a greenish LCD screen displaying the song title and artist in pixelated digital font. Below this, three chunky rectangular mechanical buttons with the labels "[ KEEP ]", "[ SKIP ]", and "[ BOOST ]". 
+Top section (Input): A cute paper note-style text input area with a subtle lined paper texture. Next to it, a prominent glowing red circular microphone button, pulsing softly. The button has a slightly 3D, tactile look.
+Bottom section (Music Card): A beautifully designed music recommendation card. A square album cover on the left with a warm vintage filter. On the right side: bold song title text, smaller artist text in warm grey, and small pill-shaped emotion tags like "[lofi]" and "[calm]" in warm pastel colors. Below the track info, three friendly round buttons with soft icons: a thumbs up, a skip icon, and a lightning bolt.
 
-Overall style: Retro Lo-Fi, nostalgic comfort, neat, highly detailed UI design, Dribbble style, aesthetic, vaporwave color accents (sunset orange, tape green).
+Overall style: Warm, cozy, Pokemon-game-UI aesthetic, nostalgic yet modern, highly detailed, Dribbble quality.
 ```
 
 ### 1.2 桌面右键菜单栏 (Desktop Context Menu)
 
-> **目标**：生成一个带有 LCD 屏幕状态栏的复古风格右键菜单。
+> **目标**：生成一个宝可梦精灵风可爱的右键菜单。
 
 **Prompt:**
 ```text
-A highly polished UI design of a desktop context menu in a Retro/Neo-brutalism style. The menu has a creamy off-white background with a thick black outline and a solid hard drop shadow.
+A highly polished UI design of a desktop context menu for a cute music app. The menu has a warm, creamy off-white background with extra-thick rounded corners and a soft, warm drop shadow. The overall vibe is like a friendly Pokemon game interface.
 
-Top area (Status Header): Designed to look like a mini vintage LCD display screen. The background of this top area is a classic digital yellow-green color. It shows a tiny pixel-art avatar of a cute cassette tape, and next to it, black pixelated text reading: "STATUS: SEARCHING...", "PLAYING: LO-FI".
-Bottom area (Actions): Clean menu items. The first item says "Open EchoPet" with a small retro eject icon. Below it are items like "Debug Tools" and "Exit".
+Top area (Status Header): A mini status card with a very subtle gradient background. On the left, a tiny cute circular avatar of a small fluffy music精灵 (fairy creature) wearing headphones. On the right, stacked neatly in clean typography: "🎧 Searching for music..." (in warm orange), "▶️ Playing", and "🎵 Midnight Rain".
+Bottom area (Actions): Friendly, rounded menu items. The first item "Open EchoPet" is slightly larger with a small music note icon. Below it, subtle grey items like "Debug Tools" and "Exit".
 
-Style: Clean retro tech, 90s aesthetic, UI/UX design, nostalgic, highly detailed.
+Style: Warm, Pokemon-game-inspired, soft and friendly, clean typography, cozy vibes.
 ```
 
 ---
 
 ## 2. 角色美术资产生成提示词 (Character Sprite Sheets)
 
-**【极度重要：DyberPet 序列帧规范】**
-DyberPet 需要的是可以播放动画的**序列帧图片 (Sprite Sequence)**，而不是单张静图。图片必须放入 `action/` 文件夹，并命名为 `动作名_0.png`, `动作名_1.png` 等。
-下面的提示词强制要求生成**像素角色动作序列帧表 (Pixel Sprite Sheet)**，并采用纯白背景，方便后期一键去底。
+**【极度重要：DyberPet 序列帧规范与后期处理】**
+1. **生成**：使用宽屏尺寸 `1536x1024` 生成白底的横向序列图。
+2. **去底**：使用抠图工具一键去除纯白背景，保留透明通道。
+3. **切分**：将宽图横向等分为 4 份或 6 份独立的 PNG。
+4. **缩放**：根据 `pet_conf.json` 里的要求（如缩小到 128x128 左右）。对于像素画，缩放时请务必使用**"邻近 (Nearest Neighbor)"**插值算法，以保持像素边缘硬朗。
+5. **命名**：放入 `action/` 文件夹，并严格命名为 `动作名_0.png`, `动作名_1.png` 等。
 
-### 2.1 角色基础设定 (Base Concept - Idle / Default State)
+### 2.1 角色基础待机 (Idle / Default State)
 
-> **目标**：生成一个可爱的像素随身听精灵的待机序列帧。切图后作为 `pet_conf.json` 中的 `default` (如 `stand_0.png` ~ `stand_3.png`)。
+> **目标**：生成一个宝可梦风格小精灵的待机呼吸序列帧。切图后作为 `pet_conf.json` 中的 `default` (如 `stand_0.png` ~ `stand_3.png`)。
 
 **Prompt:**
 ```text
-A high-quality 2D pixel art sprite sheet of a cute, friendly mascot. The character is a living, anthropomorphic retro cassette tape or mini walkman wearing tangled wired earphones.
+A 2D sprite sheet of an adorable, round, fluffy music fairy creature mascot — just like a cute Pokemon character. The creature has a perfectly round, marshmallow-soft body, big sparkly round eyes, tiny round ears on top of its head, and it is wearing a pair of oversized cute headphones.
 
-Content: A horizontal sequence of 4 to 6 frames showing an "idle breathing" animation. The cassette reels spin slowly. Small pixelated musical notes float above its head and change positions across the frames.
-Color palette: Nostalgic creamy white, cassette green, and soft warm orange accents.
-Style: Premium hi-bit pixel art, cute, retro gaming aesthetic. Arranged in a neat horizontal row on a SOLID WHITE background (perfect for sprite sheet cutting).
+Content: A horizontal sequence of 4 to 6 frames showing a gentle "idle breathing" animation. The creature floats up and down softly. Its eyes are half-closed in a content, peaceful expression. Small musical notes or tiny sparkles float and gently sway above its head across the frames.
+Color palette: Warm cream white, soft peach pink, and gentle music-note yellow accents.
+Style: Cute Pokemon / 洛克王国 style, smooth vector art, kawaii, big expressive eyes, soft rounded shapes. Arranged in a neat horizontal row on a SOLID WHITE background.
 ```
 
 ### 2.2 状态变体：专注 (Focus State)
@@ -62,11 +70,11 @@ Style: Premium hi-bit pixel art, cute, retro gaming aesthetic. Arranged in a nea
 
 **Prompt:**
 ```text
-A high-quality 2D pixel art sprite sheet of a cute anthropomorphic retro cassette tape wearing wired earphones.
+A 2D sprite sheet of an adorable, round, fluffy music fairy creature mascot — just like a cute Pokemon character. The creature has a perfectly round, marshmallow-soft body, big sparkly round eyes, tiny round ears on top of its head, and it is wearing a pair of oversized cute headphones.
 
-Content: A horizontal sequence of 4 to 6 frames showing a "focused and studying" animation. It is wearing thick black "nerd" glasses. A tiny pixelated flame of determination burns and flickers above its head across the frames. The cassette reels spin very fast.
-Color palette: Creamy white with focused yellow and orange accents.
-Style: Premium hi-bit pixel art, cute, retro gaming aesthetic. Arranged in a neat horizontal row on a SOLID WHITE background.
+Content: A horizontal sequence of 4 to 6 frames showing a "focused and hard at work" animation. Its eyes are wide open and determined, looking at something exciting. Tiny sparkles of excitement or a small music bar icon pulses above its head. Its ears perk up energetically across the frames.
+Color palette: Warm cream white, energetic yellow, and focused lavender purple accents.
+Style: Cute Pokemon / 洛克王国 style, smooth vector art, kawaii, big expressive eyes, soft rounded shapes. Arranged in a neat horizontal row on a SOLID WHITE background.
 ```
 
 ### 2.3 状态变体：疲惫 (Tired State)
@@ -75,11 +83,11 @@ Style: Premium hi-bit pixel art, cute, retro gaming aesthetic. Arranged in a nea
 
 **Prompt:**
 ```text
-A high-quality 2D pixel art sprite sheet of a cute anthropomorphic retro cassette tape wearing wired earphones.
+A 2D sprite sheet of an adorable, round, fluffy music fairy creature mascot — just like a cute Pokemon character. The creature has a perfectly round, marshmallow-soft body, big sparkly round eyes, tiny round ears on top of its head, and it is wearing oversized cute headphones that have slipped down around its neck.
 
-Content: A horizontal sequence of 4 to 6 frames showing a "tired and glitchy" animation. The character's eyes are swirling spirals. A piece of magnetic tape hangs out of its mouth, swaying slightly. A pixelated "Zzz" bubble floats next to it. There is a slight VHS glitch effect flickering on its edges across the frames.
-Color palette: Creamy white with dim, tired grey and sunset orange accents.
-Style: Premium hi-bit pixel art, cute, retro gaming aesthetic. Arranged in a neat horizontal row on a SOLID WHITE background.
+Content: A horizontal sequence of 4 to 6 frames showing a "tired and sleepy" animation. Its big round eyes are half-closed and droopy. It yawns slowly, and its tiny ears droop down tiredly. Small "Zzz" bubbles slowly float up above its head. The creature's whole body slowly sways as if about to fall asleep.
+Color palette: Warm cream white, sleepy lavender grey, and dim soft blue accents.
+Style: Cute Pokemon / 洛克王国 style, smooth vector art, kawaii, big expressive eyes, soft rounded shapes. Arranged in a neat horizontal row on a SOLID WHITE background.
 ```
 
 ### 2.4 状态变体：烦躁 (Frustrated State)
@@ -88,11 +96,11 @@ Style: Premium hi-bit pixel art, cute, retro gaming aesthetic. Arranged in a nea
 
 **Prompt:**
 ```text
-A high-quality 2D pixel art sprite sheet of a cute anthropomorphic retro cassette tape wearing wired earphones.
+A 2D sprite sheet of an adorable, round, fluffy music fairy creature mascot — just like a cute Pokemon character. The creature has a perfectly round, marshmallow-soft body, big sparkly round eyes, tiny round ears on top of its head, and it is wearing oversized cute headphones.
 
-Content: A horizontal sequence of 4 to 6 frames showing a "frustrated and angry" animation. Its face is flushed red. A lot of magnetic tape is tangled up around it, wriggling messily. Above its head, a pixelated anger symbol (💢) throbs across the frames.
-Color palette: Creamy white with strong, frustrated retro red accents.
-Style: Premium hi-bit pixel art, cute, retro gaming aesthetic. Arranged in a neat horizontal row on a SOLID WHITE background.
+Content: A horizontal sequence of 4 to 6 frames showing a "frustrated and angry" animation. Its big eyes are squinted shut tight, its tiny mouth is pouting into a small frown. Its ears are flat down. Tiny angry spark symbols (！) shake above its head. Its whole body bounces up and down slightly in frustration.
+Color palette: Warm cream white with flushed warm red cheeks and passionate orange accents.
+Style: Cute Pokemon / 洛克王国 style, smooth vector art, kawaii, big expressive eyes, soft rounded shapes. Arranged in a neat horizontal row on a SOLID WHITE background.
 ```
 
 ### 2.5 状态变体：低落 (Sad State)
@@ -101,9 +109,9 @@ Style: Premium hi-bit pixel art, cute, retro gaming aesthetic. Arranged in a nea
 
 **Prompt:**
 ```text
-A high-quality 2D pixel art sprite sheet of a cute anthropomorphic retro cassette tape wearing wired earphones.
+A 2D sprite sheet of an adorable, round, fluffy music fairy creature mascot — just like a cute Pokemon character. The creature has a perfectly round, marshmallow-soft body, big sparkly round eyes, tiny round ears on top of its head, and it is wearing oversized cute headphones.
 
-Content: A horizontal sequence of 4 to 6 frames showing a "sad and melancholic" animation. It looks downcast. A large pixel tear drops from its eye. Above it, a tiny dark pixel cloud rains small blue drops continuously across the frames.
-Color palette: Desaturated creamy white with melancholy midnight blue and cold cyan accents.
-Style: Premium hi-bit pixel art, cute, retro gaming aesthetic. Arranged in a neat horizontal row on a SOLID WHITE background.
+Content: A horizontal sequence of 4 to 6 frames showing a "sad and crying" animation. The creature is curled up slightly, looking down. Its big eyes are full of large, glimmering teardrops. Its ears are drooped down sadly. A few tiny blue teardrops fall slowly from its eyes. Small music notes around it look wilted and droopy.
+Color palette: Dimmed cool blue-grey tones, cold cyan, and melancholy deep blue accents.
+Style: Cute Pokemon / 洛克王国 style, smooth vector art, kawaii, big expressive eyes, soft rounded shapes. Arranged in a neat horizontal row on a SOLID WHITE background.
 ```
