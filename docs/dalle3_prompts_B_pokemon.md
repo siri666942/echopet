@@ -28,16 +28,18 @@ Overall style: Warm, cozy, Pokemon-game-UI aesthetic, nostalgic yet modern, high
 
 ### 1.2 桌面右键菜单栏 (Desktop Context Menu)
 
-> **目标**：生成一个宝可梦精灵风可爱的右键菜单。
+> **目标**：生成一个与复古随身听/卡带机主界面风格完美匹配的右键菜单。它看起来应该像是一个小型的外接硬件模块或便携式设备的控制面板。
 
 **Prompt:**
 ```text
-A highly polished UI design of a desktop context menu for a cute music app. The menu has a warm, creamy off-white background with extra-thick rounded corners and a soft, warm drop shadow. The overall vibe is like a friendly Pokemon game interface.
+A highly detailed UI mockup of a desktop context menu for a retro-style music app named "EchoPet". The design must strictly follow a skeuomorphic vintage electronics aesthetic, resembling a small external hardware module or a portable tape player's control panel.
 
-Top area (Status Header): A mini status card with a very subtle gradient background. On the left, a tiny cute circular avatar of a warm light deer with headphones and glowing warm patterns. On the right, stacked neatly in clean typography: "🎧 Searching for music..." (in warm orange), "▶️ Playing", and "🎵 Midnight Rain".
-Bottom area (Actions): Friendly, rounded menu items. The first item "Open EchoPet" is slightly larger with a small music note icon. Below it, subtle grey items like "Debug Tools" and "Exit".
+The menu is a vertical rectangle with rounded corners, made of warm off-white industrial plastic with subtle wear and tiny screws in the corners. 
+Top section (Status Monitor): A small, inset green LCD screen (like an old calculator or Walkman display). Inside the screen: pixelated text showing "STATUS: FINDING VIBE...", a tiny pixel-art avatar of a cute deer, and a small animated equalizer bar.
+Middle section (Current Track): A recessed area with a warm vintage paper label displaying the currently playing song: "▶ Midnight Rain" in a typewriter font.
+Bottom section (Mechanical Actions): Three chunky, physical-looking rectangular push buttons aligned vertically. The buttons are off-white with dark grey engraved text: "[ OPEN ECHOPET ]", "[ DEBUG ]", and "[ EJECT / EXIT ]". 
 
-Style: Warm, Pokemon-game-inspired, soft and friendly, clean typography, cozy vibes.
+Overall style: Retro industrial design, skeuomorphism, cassette player aesthetics, highly detailed textures, tactile buttons, Dribbble quality UI design.
 ```
 
 ---

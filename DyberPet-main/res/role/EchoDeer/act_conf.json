@@ -1,0 +1,40 @@
+{
+  "default": {
+    "images": "stand",
+    "act_num": 5,
+    "frame_refresh": 0.32
+  },
+  "up": {
+    "images": "stand",
+    "act_num": 5,
+    "frame_refresh": 0.32
+  },
+  "down": {
+    "images": "stand",
+    "act_num": 5,
+    "frame_refresh": 0.32
+  },
+  "left": {
+    "images": "stand",
+    "act_num": 5,
+    "frame_refresh": 0.32
+  },
+  "right": {
+    "images": "stand",
+    "act_num": 5,
+    "frame_refresh": 0.32
+  },
+  "drag": {
+    "images": "drag",
+    "act_num": 1
+  },
+  "fall": {
+    "images": "fall",
+    "act_num": 1
+  },
+  "onfloor": {
+    "images": "onfloor",
+    "act_num": 1,
+    "frame_refresh": 0.08
+  }
+}

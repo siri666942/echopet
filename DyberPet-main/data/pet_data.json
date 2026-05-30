@@ -7,8 +7,8 @@
         "fv_sys_ver": "v2",
         "items": {},
         "coins": 0,
-        "days": 1,
-        "last_opened": "2026-5-30"
+        "days": 2,
+        "last_opened": "2026-5-31"
     },
     "Kitty": {
         "HP": -1,
@@ -20,5 +20,16 @@
         "coins": 0,
         "days": 1,
         "last_opened": "2026-5-30"
+    },
+    "EchoDeer": {
+        "HP": 200,
+        "HP_tier": 3,
+        "FV": 0,
+        "FV_lvl": 0,
+        "fv_sys_ver": "v2",
+        "items": {},
+        "coins": 0,
+        "days": 1,
+        "last_opened": "2026-5-31"
     }
 }

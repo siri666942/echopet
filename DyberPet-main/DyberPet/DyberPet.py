@@ -1005,51 +1005,124 @@ class PetWidget(QWidget):
 
         # Status Widget
         self.statusWidget = QWidget()
+        self.statusWidget.setObjectName("StatusWidget")
         StatVbox = QVBoxLayout(self.statusWidget)
-        StatVbox.setContentsMargins(0,5,30,10)
+        StatVbox.setContentsMargins(10, 10, 10, 10)
         StatVbox.setSpacing(5)
         
-        #StatVbox.addWidget(self.statusTitle, Qt.AlignVCenter)
-        StatVbox.addStretch(1)
-        #StatVbox.addWidget(self.daysLabel)
-        StatVbox.addWidget(hpWidget, Qt.AlignLeft | Qt.AlignVCenter)
-        StatVbox.addWidget(fvWidget, Qt.AlignLeft | Qt.AlignVCenter)
-        StatVbox.addStretch(1)
-        #statusWidget.setLayout(StatVbox)
-        #statusWidget.setContentsMargins(0,0,0,0)
-        self.statusWidget.setFixedSize(250, 70)
+        # LCD Screen style
+        self.lcd_container = QFrame()
+        self.lcd_container.setObjectName("LcdScreen")
+        lcd_layout = QVBoxLayout(self.lcd_container)
+        lcd_layout.setContentsMargins(8, 8, 8, 8)
         
-        infoWidget = QWidget()
-        infoLayout = QVBoxLayout(infoWidget)
-        infoLayout.setContentsMargins(12, 6, 12, 6)
-        infoLayout.setSpacing(6)
-        self.pet_status_value = CaptionLabel("待命中", self)
+        # Avatar and Status
+        top_row = QHBoxLayout()
+        self.menu_avatar = QLabel()
+        self.menu_avatar.setFixedSize(50, 50)
+        self.menu_avatar.setAlignment(Qt.AlignCenter)
+        
+        img_path = r"C:\Users\thyss\Documents\GitHub\echopet\1.png"
+        if os.path.exists(img_path):
+            self.menu_avatar.setPixmap(QPixmap(img_path).scaled(50, 50, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation))
+        else:
+            self.menu_avatar.setText("Avatar")
+            
+        status_layout = QVBoxLayout()
+        status_label_title = QLabel("STATUS:")
+        status_label_title.setObjectName("LcdSmall")
+        self.pet_status_value = QLabel("FINDING VIBE...")
+        self.pet_status_value.setObjectName("LcdSmall")
         self.pet_status_value.setWordWrap(True)
-        self.recommendation_value = CaptionLabel("暂无", self)
+        
+        eq_label = QLabel("▂▃▅▇█▆▅▃▂")
+        eq_label.setObjectName("LcdSmall")
+        
+        status_layout.addWidget(status_label_title)
+        status_layout.addWidget(self.pet_status_value)
+        status_layout.addWidget(eq_label)
+        status_layout.addStretch()
+        
+        top_row.addWidget(self.menu_avatar)
+        top_row.addLayout(status_layout, stretch=1)
+        lcd_layout.addLayout(top_row)
+        
+        # Track Info (Paper label style)
+        self.track_container = QFrame()
+        self.track_container.setObjectName("TrackLabel")
+        track_layout = QVBoxLayout(self.track_container)
+        track_layout.setContentsMargins(5, 5, 5, 5)
+        self.recommendation_value = QLabel("▶ NO TRACK")
+        self.recommendation_value.setObjectName("TypewriterText")
         self.recommendation_value.setWordWrap(True)
-        self.player_status_value = CaptionLabel("未播放", self)
-        self.player_status_value.setWordWrap(True)
-        for title, value_label in (
-            (self.tr("Pet Status"), self.pet_status_value),
-            (self.tr("Current Recommendation"), self.recommendation_value),
-            (self.tr("Playback Status"), self.player_status_value),
-        ):
-            row = QWidget()
-            rowLayout = QHBoxLayout(row)
-            rowLayout.setContentsMargins(0, 0, 0, 0)
-            rowLayout.setSpacing(8)
-            keyLabel = CaptionLabel(title, self)
-            setFont(keyLabel, 12, QFont.DemiBold)
-            value_label.setMinimumWidth(150)
-            rowLayout.addWidget(keyLabel, 0)
-            rowLayout.addWidget(value_label, 1)
-            infoLayout.addWidget(row)
-        infoWidget.setFixedSize(270, 92)
+        track_layout.addWidget(self.recommendation_value)
+        
+        # Player Status
+        self.player_status_value = QLabel("STOPPED")
+        self.player_status_value.setObjectName("LcdSmall")
+        
+        StatVbox.addWidget(self.lcd_container)
+        StatVbox.addWidget(self.track_container)
+        StatVbox.addWidget(self.player_status_value, alignment=Qt.AlignRight)
+        
+        self.statusWidget.setFixedSize(260, 160)
+        
+        self.statusWidget.setStyleSheet("""
+            QWidget#StatusWidget {
+                background-color: #E8E6DF;
+                border-radius: 8px;
+                border: 2px solid #D0CDBE;
+            }
+            QFrame#LcdScreen {
+                background-color: #9EAB88;
+                border: 3px solid #4A4F40;
+                border-radius: 4px;
+            }
+            QLabel#LcdSmall {
+                color: #2A3020;
+                font-family: "Courier New", Courier, monospace;
+                font-size: 10px;
+                font-weight: bold;
+            }
+            QFrame#TrackLabel {
+                background-color: #D2B48C; /* Vintage paper color */
+                border: 1px solid #A0522D;
+                border-radius: 2px;
+                margin-top: 5px;
+            }
+            QLabel#TypewriterText {
+                color: #1A1A18;
+                font-family: "Courier New", Courier, monospace;
+                font-size: 12px;
+                font-weight: bold;
+            }
+        """)
 
         self.StatMenu = RoundMenu(parent=self)
-        self.StatMenu.addWidget(self.statusTitle, selectable=False)
-        self.StatMenu.addSeparator()
-        self.StatMenu.addWidget(infoWidget, selectable=False)
+        # Apply global style to RoundMenu to match the casing
+        self.StatMenu.setStyleSheet("""
+            RoundMenu {
+                background-color: #E8E6DF;
+                border: 2px solid #D0CDBE;
+                border-radius: 8px;
+            }
+            Action {
+                font-family: "Courier New", Courier, monospace;
+                font-weight: bold;
+                color: #4A4843;
+                background-color: #DCD9D0;
+                border: 2px solid #B5B2A5;
+                border-radius: 4px;
+                padding: 10px;
+                margin: 4px 10px;
+            }
+            Action:hover {
+                background-color: #C4C1B3;
+                border: 2px solid #A3A093;
+            }
+        """)
+        
+        self.StatMenu.addWidget(self.statusWidget, selectable=False)
         self.StatMenu.addSeparator()
 
         self.demo_menu = RoundMenu(self.tr("Demo States"))
@@ -1070,7 +1143,7 @@ class PetWidget(QWidget):
                 )
             )
 
-        self.debug_menu = RoundMenu(self.tr("Debug Tools"))
+        self.debug_menu = RoundMenu(self.tr("[ DEBUG ]"))
         self.debug_menu.setIcon(QIcon(os.path.join(basedir, 'res/icons/system/more.svg')))
         self.debug_menu.addActions([
             Action(QIcon(os.path.join(basedir,'res/icons/dashboard.svg')), self.tr('Dashboard'), triggered=self._show_dashboard),
@@ -1086,13 +1159,13 @@ class PetWidget(QWidget):
             self.debug_menu.addMenu(self.change_menu)
 
         self.StatMenu.addActions([
-            Action(QIcon(os.path.join(basedir,'res/icons/Dialogue_icon.png')), self.tr('Open EchoPet'), triggered=self.open_input_panel),
+            Action(QIcon(os.path.join(basedir,'res/icons/Dialogue_icon.png')), self.tr('[ OPEN ECHOPET ]'), triggered=self.open_input_panel),
         ])
         self.StatMenu.addMenu(self.debug_menu)
         self.StatMenu.addSeparator()
         
         self.StatMenu.addActions([
-            Action(FIF.POWER_BUTTON, self.tr('Exit'), triggered=self.quit),
+            Action(FIF.POWER_BUTTON, self.tr('[ EJECT / EXIT ]'), triggered=self.quit),
         ])
         self._refresh_echopet_status_summary()
 

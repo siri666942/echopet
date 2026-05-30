@@ -13,32 +13,31 @@
 
 ### 1.1 主输入与音乐推荐面板 (Input & Music Response Panel)
 
-> **目标**：生成一个深色模式、具有亚克力毛玻璃质感、结合了语音输入和音乐推荐卡片的现代 UI 窗口。
+> **目标**：生成一个深色模式、具有丰富层次感和数据可视化元素的专业级 UI 面板，消除廉价的"AI生成毛玻璃"感，打造类似 Figma 上的高级 Dashboard 质感。
 
 **Prompt:**
 ```text
-A modern, high-end desktop application UI mockup for an emotional music AI agent called "EchoPet". The UI is a floating rectangular window with rounded corners. The theme is dark mode with a frosted glass (acrylic/blur) background. 
+A highly detailed, professional UI/UX design mockup for an advanced emotional music AI desktop application named "EchoPet". The interface is a sophisticated dark mode dashboard floating on a desktop, designed with complex visual hierarchy and data visualization elements.
 
-The window is vertically divided into two sections. 
-Top section (Input): A sleek, minimalist search bar with placeholder text "Tell EchoPet how you feel...". Next to it, a prominent, glowing circular microphone button indicating active listening. 
-Bottom section (Music Card): A beautifully designed music recommendation card. It features a square album art on the left, bold white text for the song title, grey text for the artist, and small pill-shaped tags like "[lofi]" and "[calm]" with a subtle purple tint. Below the track info, there are three minimalist buttons with emojis: "👍", "👎", and "⚡". 
+The UI is enclosed in a sleek, dark titanium-grey frame with subtle glowing neon-blue edge highlights.
+Top section (Voice Input & Analysis): A wide, complex input module. On the left, a detailed real-time audio waveform visualizer. In the center, a glowing circular voice-activation button with intricate concentric rings and micro-text reading "VOICE RECEPTOR ACTIVE". Above it, floating micro-data tags showing "Emotion: Frustrated [87%]" and "BPM Target: 85".
+Bottom section (Dynamic Music Hub): A multi-layered music player card. On the left, high-resolution album art with a holographic overlay effect. In the middle, complex track information with glowing progress bars, EQ sliders, and technical typography (e.g., "TRACK: MIDNIGHT RAIN // GENRE: LOFI-SYNTH"). On the right, a vertical stack of sleek, glowing feedback buttons with crisp iconography (Like, Skip, Boost Intensity).
 
-The overall style should be Cyber-Warmth, minimalist, futuristic yet cozy, similar to Fluent Design or macOS Big Sur design language. Clean typography, no cluttered gaming elements.
+Overall style: Cyberpunk meets professional fintech dashboard, highly complex, rich in micro-details (grid lines, data points, subtle glowing gradients), Dribbble/Behance top-tier UI design, photorealistic rendering.
 ```
 
 ### 1.2 桌面右键菜单栏 (Desktop Context Menu)
 
-> **目标**：生成一个带有微型状态卡片和操作选项的精致右键菜单。
+> **目标**：生成一个带有高科技感、微型数据图表和复杂操作选项的精致右键菜单。
 
 **Prompt:**
 ```text
-A highly polished, dark mode context menu UI design floating on a desktop background. The menu has soft rounded corners and a translucent frosted glass effect (acrylic material).
+A highly detailed, professional UI/UX design mockup of a complex desktop context menu for an advanced music AI. The menu floats on a dark background and features a dark titanium-grey metallic texture with sharp, precise edges and glowing neon-blue accents.
 
-The menu has two main areas. 
-Top area (Status Header): A mini-card integrated into the top of the menu. On the left, a small, cute circular avatar of a glowing light-orb fairy with tiny star horns and headphones. On the right, three lines of text neatly stacked: "🎧 Finding music for you..." (highlighted in soft blue), "▶️ Playing", and "🎵 Midnight Rain". 
-Bottom area (Actions): Clean, minimalist list items with simple icons. The first item is "Open EchoPet" in bold text. Below it are subtle grey options like "Debug Tools" and "Exit".
+Top area (Live Status HUD): A mini-dashboard integrated into the top of the menu. On the left, a small, highly detailed holographic avatar of a glowing light-orb fairy inside a circular glowing border. Next to it, a tiny real-time line chart showing "Vibe Fluctuation". Below the chart, crisp technical text reading "SYS.STATUS: FINDING TRACK..." and "NOW_PLAYING: MIDNIGHT RAIN".
+Bottom area (Command Matrix): A list of complex, sleek menu items with detailed micro-icons. The items look like command console inputs: "> INITIATE ECHOPET", "> RUN DIAGNOSTICS", and "> TERMINATE PROCESS". Each item has a subtle glowing hover effect state shown.
 
-The visual style is elegant, modern, and professional, suitable for a hackathon presentation. Crisp text, dark grey background (#1C1C1E), and precise padding.
+Overall style: Advanced cyberpunk UI, complex data visualization, professional software interface, crisp typography, rich micro-details, Dribbble/Behance top-tier UI design.
 ```
 
 ---

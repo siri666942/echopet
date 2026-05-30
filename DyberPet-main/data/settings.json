@@ -5,10 +5,12 @@
     "fixdragspeedy": 1.0,
     "usertag_dict": {
         "Kitty": "",
+        "EchoDeer": "",
         "ChrisKitty": ""
     },
     "scale_dict": {
         "Kitty": 1.0,
+        "EchoDeer": 1.0,
         "ChrisKitty": 1.0
     },
     "minipet_scale": {},
@@ -16,10 +18,11 @@
     "on_top_hint": true,
     "toaster_on": true,
     "bubble_on": true,
-    "default_pet": "ChrisKitty",
+    "default_pet": "EchoDeer",
     "defaultAct": {
         "ChrisKitty": null,
-        "Kitty": null
+        "Kitty": null,
+        "EchoDeer": null
     },
     "language_code": "zh_CN",
     "themeColor": null,
