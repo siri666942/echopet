@@ -1,0 +1,27 @@
+{
+    "gravity": 0.1,
+    "set_fall": true,
+    "fixdragspeedx": 1.0,
+    "fixdragspeedy": 1.0,
+    "usertag_dict": {
+        "ChrisKitty": "",
+        "Kitty": ""
+    },
+    "scale_dict": {
+        "ChrisKitty": 1.0,
+        "Kitty": 1.0
+    },
+    "minipet_scale": {},
+    "volume": 0.5,
+    "on_top_hint": true,
+    "toaster_on": true,
+    "bubble_on": true,
+    "default_pet": "ChrisKitty",
+    "defaultAct": {
+        "ChrisKitty": null,
+        "Kitty": null
+    },
+    "language_code": "zh_CN",
+    "themeColor": null,
+    "auto_lock": false
+}

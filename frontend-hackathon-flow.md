@@ -342,7 +342,7 @@ frontend/
 
 ### 1. 入口和整体装配
 
-`DyberPet-main/DyberPet-main/run_DyberPet.py`
+`DyberPet-main/run_DyberPet.py`
 
 这里负责：
 
@@ -356,7 +356,7 @@ frontend/
 
 ### 2. 桌宠主界面与交互
 
-`DyberPet-main/DyberPet-main/DyberPet/DyberPet.py`
+`DyberPet-main/DyberPet/DyberPet.py`
 
 这是最关键的前端主文件，里面已经有：
 
@@ -380,7 +380,7 @@ frontend/
 
 ### 3. 气泡逻辑
 
-`DyberPet-main/DyberPet-main/DyberPet/bubbleManager.py`
+`DyberPet-main/DyberPet/bubbleManager.py`
 
 这里负责：
 
@@ -399,7 +399,7 @@ frontend/
 
 ### 4. 角色素材规范
 
-`DyberPet-main/DyberPet-main/docs/art_dev.md`
+`DyberPet-main/docs/art_dev.md`
 
 这份文档很关键，因为它说明了：
 

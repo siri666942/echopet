@@ -1,0 +1,26 @@
+{
+    "ChrisKitty":{
+        "站立":{
+            "act_type":"random_act",
+            "special_act":false,
+            "unlocked":true,
+            "in_playlist":true,
+            "act_prob":1.0,
+            "status_type":[
+                2,
+                0
+            ]
+        },
+        "onfloor":{
+            "act_type":"random_act",
+            "special_act":false,
+            "unlocked":false,
+            "in_playlist":false,
+            "act_prob":0,
+            "status_type":[
+                -1,
+                -1
+            ]
+        }
+    }
+}
