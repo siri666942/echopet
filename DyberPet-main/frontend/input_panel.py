@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import os
+from pathlib import Path
 
 from PySide6.QtCore import QEvent, QPoint, Qt, Signal, QSize
 from PySide6.QtGui import QFont, QPainter, QPixmap, QIcon
@@ -22,20 +22,21 @@ from PySide6.QtWidgets import (
 class InputPanel(QFrame):
     submit_requested = Signal(str, str)
     mock_state_requested = Signal(str)
-    feedback_requested = Signal(str, str)
+    player_event_requested = Signal(str, float, str)
     record_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self._current_track_id = ""
+        self._current_session_id = ""
         self._drag_active = False
         self._drag_offset = QPoint()
         self._build_ui()
         self._apply_styles()
 
     def _build_avatar_pixmap(self, target_width: int, target_height: int) -> QPixmap:
-        img_path = r"C:\Users\thyss\Documents\GitHub\echopet\1.png"
-        source = QPixmap(img_path)
+        img_path = Path(__file__).resolve().parents[2] / "1.png"
+        source = QPixmap(str(img_path))
         if source.isNull():
             return QPixmap()
 
@@ -404,9 +405,10 @@ class InputPanel(QFrame):
         self.min_button.clicked.connect(self.showMinimized)
         self.close_button.clicked.connect(self.hide)
         self.voice_button.clicked.connect(self.record_requested.emit)
-        self.like_button.clicked.connect(lambda: self._emit_feedback("positive"))
-        self.dislike_button.clicked.connect(lambda: self._emit_feedback("negative"))
-        self.energy_button.clicked.connect(lambda: self._emit_feedback("more_energy"))
+        self.like_button.clicked.connect(lambda: self._emit_player_event(0.9, "finished"))
+        self.dislike_button.clicked.connect(lambda: self._emit_player_event(0.1, "skipped"))
+        self.energy_button.setEnabled(False)
+        self.energy_button.setToolTip("新版后端暂时没有显式 BOOST 接口，所以这里先禁用。")
         self.debug_toggle_button.toggled.connect(self.set_debug_tools_visible)
         for widget in (
             self,
@@ -694,8 +696,8 @@ class InputPanel(QFrame):
         else:
             self.show_status("STATUS: NO INPUT")
 
-    def _emit_feedback(self, feedback: str) -> None:
-        self.feedback_requested.emit(self._current_track_id, feedback)
+    def _emit_player_event(self, completion_rate: float, ended_reason: str) -> None:
+        self.player_event_requested.emit(self._current_session_id, completion_rate, ended_reason)
 
     def set_busy(self, busy: bool, message: str = "") -> None:
         self.submit_button.setEnabled(not busy)
@@ -751,6 +753,7 @@ class InputPanel(QFrame):
         track_title = recommendation.get("title") or "NO TRACK"
         artist = recommendation.get("artist") or ""
         self._current_track_id = recommendation.get("id", "")
+        self._current_session_id = mapped_result.get("session_id", "")
 
         self.state_label.setText(f"STATE: {mapped_result.get('pet_state', 'idle').upper()}")
         if artist:
@@ -768,8 +771,10 @@ class InputPanel(QFrame):
             self.show_status("MODE: ONLINE")
 
         has_track = bool(self._current_track_id)
-        for button in (self.like_button, self.dislike_button, self.energy_button):
-            button.setEnabled(has_track)
+        has_session = bool(self._current_session_id)
+        for button in (self.like_button, self.dislike_button):
+            button.setEnabled(has_track and has_session)
+        self.energy_button.setEnabled(False)
             
         import random
         match_score = random.randint(85, 99) if has_track else 0

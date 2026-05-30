@@ -26,10 +26,13 @@ echopet/
 │   ├── tests/
 │   ├── db/
 │   └── music/
+├── DyberPet-main/
+│   └── frontend/
+├── docs/
+│   └── design_system.md
 ├── api_docs.md
-├── backend_dev_guide.md
 ├── product_design.md
-└── techneque_design.md
+└── README.md
 ```
 
 ## 环境要求

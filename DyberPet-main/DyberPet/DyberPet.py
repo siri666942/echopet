@@ -392,7 +392,7 @@ class PetWidget(QWidget):
 
     refresh_acts = Signal(name='refresh_acts')
     agent_result_ready = Signal(dict, name='agent_result_ready')
-    feedback_result_ready = Signal(str, name='feedback_result_ready')
+    player_event_result_ready = Signal(str, name='player_event_result_ready')
     transcript_ready = Signal(str, name='transcript_ready')
     transcript_failed = Signal(str, name='transcript_failed')
 
@@ -1022,9 +1022,9 @@ class PetWidget(QWidget):
         self.menu_avatar.setFixedSize(50, 50)
         self.menu_avatar.setAlignment(Qt.AlignCenter)
         
-        img_path = r"C:\Users\thyss\Documents\GitHub\echopet\1.png"
-        if os.path.exists(img_path):
-            self.menu_avatar.setPixmap(QPixmap(img_path).scaled(50, 50, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation))
+        img_path = Path(__file__).resolve().parents[2] / "1.png"
+        if img_path.exists():
+            self.menu_avatar.setPixmap(QPixmap(str(img_path)).scaled(50, 50, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation))
         else:
             self.menu_avatar.setText("Avatar")
             
@@ -1474,10 +1474,10 @@ class PetWidget(QWidget):
         self.input_panel = InputPanel()
         self.input_panel.submit_requested.connect(self.submit_user_text)
         self.input_panel.mock_state_requested.connect(self.apply_mock_state)
-        self.input_panel.feedback_requested.connect(self.send_feedback)
+        self.input_panel.player_event_requested.connect(self.send_player_event)
         self.input_panel.record_requested.connect(self.toggle_recording)
         self.agent_result_ready.connect(self._handle_agent_result_ready)
-        self.feedback_result_ready.connect(self._handle_feedback_result_ready)
+        self.player_event_result_ready.connect(self._handle_player_event_result_ready)
         self.transcript_ready.connect(self._handle_transcript_ready)
         self.transcript_failed.connect(self._handle_transcript_failed)
 
@@ -1687,24 +1687,24 @@ class PetWidget(QWidget):
         if status_payload.get("status") in ("idle", "error") and self.player_status_poller:
             self.player_status_poller.stop()
 
-    def send_feedback(self, song_id, feedback):
+    def send_player_event(self, session_id, completion_rate, ended_reason):
         threading.Thread(
-            target=self._send_feedback_async,
-            args=(song_id, feedback),
+            target=self._send_player_event_async,
+            args=(session_id, completion_rate, ended_reason),
             daemon=True,
         ).start()
 
-    def _send_feedback_async(self, song_id, feedback):
-        response = self.agent_client.send_feedback(song_id, feedback)
-        message = response.get("message", "Feedback sent")
-        self.feedback_result_ready.emit(message)
+    def _send_player_event_async(self, session_id, completion_rate, ended_reason):
+        response = self.agent_client.send_player_event(session_id, completion_rate, ended_reason)
+        message = response.get("message", "播放事件已上报")
+        self.player_event_result_ready.emit(message)
 
-    def _handle_feedback_result_ready(self, message):
+    def _handle_player_event_result_ready(self, message):
         if self.input_panel:
             self.input_panel.show_status(f"提示: {message}")
         self.register_bubbleText(
             {
-                "bubble_type": "agent_feedback",
+                "bubble_type": "agent_player_event",
                 "message": message,
                 "icon": None,
                 "timeout": 4,
