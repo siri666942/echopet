@@ -22,12 +22,14 @@
 
 ### Context（环境上下文）
 
-| 字段 | 类型 | 说明 | 示例 |
-|------|------|------|------|
-| hour | integer | 当前小时（0-23） | `2` |
-| active_app | string | 当前活跃应用 | `"VSCode"` |
-| kpm | integer | 每分钟按键次数 | `160` |
-| backspace_ratio | float | 退格键占比（0-1） | `0.22` |
+
+| 字段              | 类型      | 说明         | 示例         |
+| --------------- | ------- | ---------- | ---------- |
+| hour            | integer | 当前小时（0-23） | `2`        |
+| active_app      | string  | 当前活跃应用     | `"VSCode"` |
+| kpm             | integer | 每分钟按键次数    | `160`      |
+| backspace_ratio | float   | 退格键占比（0-1） | `0.22`     |
+
 
 ```json
 {
@@ -40,11 +42,13 @@
 
 ### Emotion（情绪分析结果）
 
-| 字段 | 类型 | 说明 | 示例 |
-|------|------|------|------|
-| emotion | string | 情绪标签 | `"frustrated"` |
-| energy | float | 能量值（0-1），0=低落，1=亢奋 | `0.3` |
-| need | string | 当前需求 | `"comfort"` |
+
+| 字段      | 类型     | 说明                 | 示例             |
+| ------- | ------ | ------------------ | -------------- |
+| emotion | string | 情绪标签               | `"frustrated"` |
+| energy  | float  | 能量值（0-1），0=低落，1=亢奋 | `0.3`          |
+| need    | string | 当前需求               | `"comfort"`    |
+
 
 可选 emotion 值：`frustrated` / `sad` / `happy` / `focused` / `tired` / `anxious` / `calm`
 
@@ -60,15 +64,17 @@
 
 ### Song（歌曲）
 
-| 字段 | 类型 | 说明 | 示例 |
-|------|------|------|------|
-| id | string | 歌曲唯一ID | `"s001"` |
-| title | string | 歌曲标题 | `"Midnight Rain"` |
-| artist | string | 艺术家 | `"LoFi Dreams"` |
-| tags | string[] | 标签列表 | `["lofi", "calm", "night"]` |
-| energy | float | 能量值（0-1） | `0.3` |
-| mood | string | 情绪标签 | `"soothing"` |
-| file_path | string | 文件路径 | `"/music/s001.mp3"` |
+
+| 字段        | 类型       | 说明       | 示例                          |
+| --------- | -------- | -------- | --------------------------- |
+| id        | string   | 歌曲唯一ID   | `"s001"`                    |
+| title     | string   | 歌曲标题     | `"Midnight Rain"`           |
+| artist    | string   | 艺术家      | `"LoFi Dreams"`             |
+| tags      | string[] | 标签列表     | `["lofi", "calm", "night"]` |
+| energy    | float    | 能量值（0-1） | `0.3`                       |
+| mood      | string   | 情绪标签     | `"soothing"`                |
+| file_path | string   | 文件路径     | `"/music/s001.mp3"`         |
+
 
 ```json
 {
@@ -84,13 +90,15 @@
 
 ### MemoryEntry（记忆条目）
 
-| 字段 | 类型 | 说明 | 示例 |
-|------|------|------|------|
+
+| 字段        | 类型       | 说明           | 示例                      |
+| --------- | -------- | ------------ | ----------------------- |
 | timestamp | datetime | ISO 8601 时间戳 | `"2025-01-15T02:30:00"` |
-| context | Context | 当时的环境上下文 | — |
-| emotion | Emotion | 当时的情绪分析 | — |
-| song_id | string | 推荐的歌曲ID | `"s001"` |
-| feedback | string | 用户反馈 | `"positive"` |
+| context   | Context  | 当时的环境上下文     | —                       |
+| emotion   | Emotion  | 当时的情绪分析      | —                       |
+| song_id   | string   | 推荐的歌曲ID      | `"s001"`                |
+| feedback  | string   | 用户反馈         | `"positive"`            |
+
 
 ```json
 {
@@ -122,10 +130,12 @@
 
 **Request Body**
 
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| audio | string | ✅ | 音频文件的 Base64 编码 |
-| context | Context | ✅ | 当前环境上下文 |
+
+| 字段      | 类型      | 必填  | 说明              |
+| ------- | ------- | --- | --------------- |
+| audio   | string  | ✅   | 音频文件的 Base64 编码 |
+| context | Context | ✅   | 当前环境上下文         |
+
 
 ```json
 {
@@ -141,11 +151,13 @@
 
 **Response `200 OK`**
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| transcript | string | Whisper 转写的文本 |
-| emotion | Emotion | 情绪分析结果 |
-| recommendation | Song | 推荐的歌曲（含 file_path） |
+
+| 字段             | 类型      | 说明                 |
+| -------------- | ------- | ------------------ |
+| transcript     | string  | Whisper 转写的文本      |
+| emotion        | Emotion | 情绪分析结果             |
+| recommendation | Song    | 推荐的歌曲（含 file_path） |
+
 
 ```json
 {
@@ -166,11 +178,13 @@
 
 **错误响应**
 
-| 状态码 | 说明 |
-|--------|------|
+
+| 状态码 | 说明                    |
+| --- | --------------------- |
 | 400 | 缺少 audio 或 context 字段 |
-| 422 | audio Base64 解码失败 |
-| 500 | Whisper 或 LLM 服务异常 |
+| 422 | audio Base64 解码失败     |
+| 500 | Whisper 或 LLM 服务异常    |
+
 
 ---
 
@@ -180,20 +194,24 @@
 
 **Request Body**
 
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| song_id | string | ✅ | 歌曲ID |
-| feedback | string | ✅ | 反馈类型 |
+
+| 字段       | 类型     | 必填  | 说明   |
+| -------- | ------ | --- | ---- |
+| song_id  | string | ✅   | 歌曲ID |
+| feedback | string | ✅   | 反馈类型 |
+
 
 可选 feedback 值：
 
-| 值 | 含义 |
-|----|------|
-| `positive` | 喜欢 |
-| `negative` | 不喜欢 |
-| `too_quiet` | 太安静了 |
-| `too_sad` | 太悲伤了 |
+
+| 值             | 含义     |
+| ------------- | ------ |
+| `positive`    | 喜欢     |
+| `negative`    | 不喜欢    |
+| `too_quiet`   | 太安静了   |
+| `too_sad`     | 太悲伤了   |
 | `more_energy` | 想要更有力量 |
+
 
 ```json
 {
@@ -213,11 +231,13 @@
 
 **错误响应**
 
-| 状态码 | 说明 |
-|--------|------|
+
+| 状态码 | 说明                    |
+| --- | --------------------- |
 | 400 | 缺少 song_id 或 feedback |
-| 404 | song_id 不存在 |
-| 422 | feedback 值不在允许范围内 |
+| 404 | song_id 不存在           |
+| 422 | feedback 值不在允许范围内     |
+
 
 ---
 
@@ -242,9 +262,11 @@
 
 **错误响应**
 
-| 状态码 | 说明 |
-|--------|------|
+
+| 状态码 | 说明       |
+| --- | -------- |
 | 500 | 环境感知模块异常 |
+
 
 ---
 
@@ -254,10 +276,12 @@
 
 **Query Parameters**
 
-| 参数 | 类型 | 必填 | 默认值 | 说明 |
-|------|------|------|--------|------|
-| limit | integer | ❌ | `20` | 每页条数 |
-| offset | integer | ❌ | `0` | 偏移量 |
+
+| 参数     | 类型      | 必填  | 默认值  | 说明   |
+| ------ | ------- | --- | ---- | ---- |
+| limit  | integer | ❌   | `20` | 每页条数 |
+| offset | integer | ❌   | `0`  | 偏移量  |
+
 
 **请求示例**
 
@@ -267,10 +291,12 @@ GET /api/memory?limit=10&offset=0
 
 **Response `200 OK`**
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
+
+| 字段      | 类型            | 说明     |
+| ------- | ------------- | ------ |
 | entries | MemoryEntry[] | 记忆条目列表 |
-| total | integer | 总条数 |
+| total   | integer       | 总条数    |
+
 
 ```json
 {
@@ -317,9 +343,11 @@ GET /api/memory?limit=10&offset=0
 
 **错误响应**
 
-| 状态码 | 说明 |
-|--------|------|
+
+| 状态码 | 说明   |
+| --- | ---- |
 | 404 | 曲库为空 |
+
 
 ---
 
@@ -337,6 +365,9 @@ GET /api/memory?limit=10&offset=0
 
 ## 变更记录
 
-| 日期 | 版本 | 说明 |
-|------|------|------|
+
+| 日期         | 版本   | 说明                    |
+| ---------- | ---- | --------------------- |
 | 2026-05-30 | v0.1 | 初始版本，基于技术设计文档提取 5 个接口 |
+
+
