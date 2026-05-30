@@ -61,10 +61,7 @@ env/
 logs/
 
 # ===== Audio / Music (用户本地曲库不提交) =====
-# music/
-# *.mp3
-# *.wav
-# *.flac
+backend/music/
 
 # ===== Misc =====
 *.tmp

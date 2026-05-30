@@ -90,17 +90,28 @@ class AgentClient:
             pass
         return self.last_player_status.copy()
 
-    def send_feedback(self, song_id: str, feedback: str) -> Dict:
-        if not song_id:
-            return {"status": "ignored", "message": "当前没有可反馈的歌曲"}
+    def send_player_event(
+        self,
+        session_id: str,
+        completion_rate: float,
+        ended_reason: str,
+        event: str = "ended",
+    ) -> Dict:
+        if not session_id:
+            return {"status": "ignored", "message": "当前没有可上报的播放会话"}
         try:
             return self._request_json(
                 "POST",
-                "/api/feedback",
-                {"song_id": song_id, "feedback": feedback},
+                "/api/player/event",
+                {
+                    "session_id": session_id,
+                    "event": event,
+                    "completion_rate": completion_rate,
+                    "ended_reason": ended_reason,
+                },
             )
         except AgentClientError:
-            return {"status": "ok", "message": f"已记录本地反馈: {feedback}"}
+            return {"status": "ok", "message": "播放事件已在本地忽略，后端暂不可用"}
 
     def transcribe_audio(self, audio_b64: str, audio_format: str = "wav") -> Dict:
         return self._request_json(
@@ -171,6 +182,9 @@ class AgentClient:
             },
             "play_action": "play" if state != "idle" else "none",
             "player_status": "playing" if state != "idle" else "idle",
+            "session_id": "",
+            "retrieval_query": "",
+            "playlist": [],
         }
 
     def _cache_result(self, result: Dict) -> None:

@@ -4,163 +4,104 @@
 >
 > Content-Type: `application/json`
 >
-> 当前版本已对齐黑客松实现路线：`DyberPet` 作为前端基座，输入链路为 `录音 -> faster-whisper -> text -> analyze -> mpv`
-
----
-
-## 目录
-
-- [数据模型](#数据模型)
-- [接口列表](#接口列表)
-  - [1. POST /api/transcribe — 音频转文本](#1-post-apitranscribe)
-  - [2. POST /api/analyze — 文本分析与推荐](#2-post-apianalyze)
-  - [3. POST /api/feedback — 用户反馈](#3-post-apifeedback)
-  - [4. GET /api/context — 获取环境上下文](#4-get-apicontext)
-  - [5. GET /api/memory — 查询历史记忆](#5-get-apimemory)
-  - [6. GET /api/player/status — 获取 mpv 播放状态](#6-get-apiplayerstatus)
-  - [7. GET /api/music/random — 随机获取歌曲](#7-get-apimusicrandom)
-
----
+> 当前后端主链路是 2.0 架构：用户文本和上下文进入 `/api/analyze`，后端生成音乐检索语句，使用真实 embedding 召回歌曲，返回播放队列，并用 `/api/player/event` 接收播放完成率或跳过事件。
 
 ## 数据模型
 
-### Context（环境上下文）
+### Context
 
-
-| 字段              | 类型      | 说明                           | 示例         |
-| --------------- | ------- | ---------------------------- | ---------- |
-| hour            | integer | 当前小时（0-23），后端采集           | `2`        |
-| active_app      | string  | 当前活跃应用，后端采集               | `"VSCode"` |
-| kpm             | integer | 每分钟按键次数，**前端采集**          | `160`      |
-| backspace_ratio | float   | 退格键占比（0-1），**前端采集**       | `0.22`     |
-
+环境上下文由后端和前端共同组成。当前 MVP 中键盘指标可以为 0。
 
 ```json
 {
-  "hour": 2,
+  "hour": 22,
   "active_app": "VSCode",
-  "kpm": 160,
-  "backspace_ratio": 0.22
+  "kpm": 0,
+  "backspace_ratio": 0.0
 }
 ```
 
-### Emotion（情绪分析结果）
+字段说明：
 
-| 字段 | 类型 | 说明 | 示例 |
-|------|------|------|------|
-| emotion | string | 情绪标签 | `"frustrated"` |
-| energy | float | 能量值（0-1） | `0.3` |
-| need | string | 当前需求 | `"comfort"` |
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `hour` | integer | 当前小时，范围 0-23 |
+| `active_app` | string | 当前活跃应用 |
+| `kpm` | integer | 每分钟按键数 |
+| `backspace_ratio` | float | 退格比例，范围 0-1 |
 
-可选 `emotion` 值：
+### Emotion
 
-`frustrated` / `sad` / `happy` / `focused` / `tired` / `anxious` / `calm`
-
-可选 `need` 值：
-
-`comfort` / `focus` / `energy` / `relaxation` / `companionship`
+这是兼容旧前端的字段。新版推荐不靠它做主排序，真正推荐依据是 `retrieval_query` 和歌曲 embedding。
 
 ```json
 {
-  "emotion": "frustrated",
-  "energy": 0.3,
-  "need": "comfort"
+  "emotion": "focused",
+  "energy": 0.55,
+  "need": "focus"
 }
 ```
 
-### Song（歌曲）
+### Song
 
-| 字段 | 类型 | 说明 | 示例 |
-|------|------|------|------|
-| id | string | 歌曲唯一ID | `"s001"` |
-| title | string | 歌曲标题 | `"Midnight Rain"` |
-| artist | string | 艺术家 | `"LoFi Dreams"` |
-| tags | string[] | 标签列表 | `["lofi", "calm", "night"]` |
-| energy | float | 能量值（0-1） | `0.3` |
-| mood | string | 情绪标签 | `"soothing"` |
-| file_path | string | 本地文件路径，供 `mpv` 播放 | `"C:/music/s001.mp3"` |
+接口会返回歌曲元数据、Essentia 音频特征和播放统计，但不会返回 embedding 原始向量。
 
 ```json
 {
-  "id": "s001",
-  "title": "Midnight Rain",
-  "artist": "LoFi Dreams",
-  "tags": ["lofi", "calm", "night"],
-  "energy": 0.3,
-  "mood": "soothing",
-  "file_path": "C:/music/s001.mp3"
-}
-```
-
-### MemoryEntry（记忆条目）
-
-
-| 字段        | 类型       | 说明           | 示例                      |
-| --------- | -------- | ------------ | ----------------------- |
-| timestamp | datetime | ISO 8601 时间戳 | `"2025-01-15T02:30:00"` |
-| context   | Context  | 当时的环境上下文     | —                       |
-| emotion   | Emotion  | 当时的情绪分析      | —                       |
-| song_id   | string   | 推荐的歌曲ID      | `"s001"`                |
-| feedback  | string   | 用户反馈         | `"positive"`            |
-
-
-```json
-{
-  "timestamp": "2025-01-15T02:30:00",
-  "context": {
-    "hour": 2,
-    "active_app": "VSCode",
-    "kpm": 160,
-    "backspace_ratio": 0.22
+  "id": "song-001",
+  "title": "示例歌曲",
+  "artist": "本地曲库",
+  "tags": ["essentia"],
+  "energy": 0.62,
+  "mood": "calm",
+  "file_path": "backend/music/example.mp3",
+  "description": "中速、响度适中、节奏稳定的器乐片段。",
+  "audio_features": {
+    "basic": {
+      "duration": 185.2,
+      "bpm": 92.0,
+      "loudness": -14.1,
+      "dynamic_complexity": 3.4,
+      "spectral_centroid": 2100.0,
+      "spectral_energy": 0.82,
+      "danceability": 0.48,
+      "key": "C",
+      "scale": "minor"
+    }
   },
-  "emotion": {
-    "emotion": "frustrated",
-    "energy": 0.3,
-    "need": "comfort"
+  "semantic_features": {
+    "genre": {},
+    "mood": {},
+    "arousal": null,
+    "valence": null,
+    "voice_instrumental": {}
   },
-  "song_id": "s001",
-  "feedback": "positive"
+  "play_count": 3,
+  "avg_completion_rate": 0.74
 }
 ```
 
-### PlayerStatus（播放器状态）
-
-| 字段 | 类型 | 说明 | 示例 |
-|------|------|------|------|
-| player | string | 播放器名称 | `"mpv"` |
-| status | string | 当前状态 | `"playing"` |
-| track_id | string | 当前歌曲ID | `"s001"` |
-| title | string | 当前歌曲名 | `"Midnight Rain"` |
-| artist | string | 当前艺术家 | `"LoFi Dreams"` |
-
-可选 `status` 值：
-
-`idle` / `loading` / `playing` / `paused` / `error`
+### PlayerStatus
 
 ```json
 {
   "player": "mpv",
   "status": "playing",
-  "track_id": "s001",
-  "title": "Midnight Rain",
-  "artist": "LoFi Dreams"
+  "track_id": "song-001",
+  "title": "示例歌曲",
+  "artist": "本地曲库"
 }
 ```
 
----
+`status` 可选值：`idle`、`loading`、`playing`、`paused`、`error`。
 
 ## 接口列表
 
-### 1. `POST /api/transcribe`
+### POST `/api/transcribe`
 
-> 录音入口接口。前端录音后，将音频提交给 `faster-whisper` 服务，返回识别文本。
+把前端录音的 base64 音频转成文字。
 
-**Request Body**
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| audio | string | ✅ | 音频文件的 Base64 编码 |
-| audio_format | string | ❌ | 音频格式，默认 `wav` |
+请求：
 
 ```json
 {
@@ -169,321 +110,226 @@
 }
 ```
 
-**Response `200 OK`**
+响应：
 
 ```json
 {
-  "transcript": "我有点烦，来点适合现在的歌",
+  "transcript": "我现在想进入专注状态",
   "language": "zh",
   "source": "faster-whisper"
 }
 ```
 
-**错误响应**
+常见错误：
 
 | 状态码 | 说明 |
-|--------|------|
-| 400 | 缺少 audio 字段 |
-| 422 | audio Base64 解码失败 |
-| 500 | `faster-whisper` 服务异常 |
+| --- | --- |
+| 400/422 | audio 缺失或不是合法 base64 |
+| 500 | 语音识别服务异常 |
 
----
+### POST `/api/analyze`
 
-### 2. `POST /api/analyze`
+核心推荐接口。前端提交文本和上下文，后端返回桌宠状态、气泡文案、第一首推荐歌、完整 playlist 和本次播放会话 `session_id`。
 
-> 核心接口。接收文本输入和环境上下文，返回情绪分析、桌宠状态、推荐歌曲和播放状态。
-
-**Request Body**
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| text | string | ✅ | 用户输入文本，可以来自直接输入，也可以来自 `faster-whisper` |
-| input_source | string | ✅ | 输入来源，`text` 或 `faster_whisper` |
-| context | Context | ✅ | 当前环境上下文 |
+请求：
 
 ```json
 {
-  "text": "我有点烦，来点适合现在的歌",
-  "input_source": "faster_whisper",
+  "text": "我现在有点累，但还想继续写代码",
+  "input_source": "text",
   "context": {
-    "hour": 2,
+    "hour": 22,
     "active_app": "VSCode",
-    "kpm": 160,
-    "backspace_ratio": 0.22
+    "kpm": 0,
+    "backspace_ratio": 0.0
   }
 }
 ```
 
-**Response `200 OK`**
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| transcript | string | 规范化后的文本，通常与输入一致 |
-| emotion | Emotion | 情绪分析结果 |
-| current_state | string | 前端可直接使用的桌宠状态 |
-| bubble_text | string | 建议展示在桌宠气泡中的文案 |
-| assistant_reply | string | 对用户的回复 |
-| recommendation | Song | 推荐的歌曲 |
-| play_action | string | 建议对 `mpv` 执行的动作 |
-| player_status | string | 当前播放器状态 |
-
-可选 `current_state` 值：
-
-`idle` / `focus` / `tired` / `frustrated` / `sad`
-
-可选 `play_action` 值：
-
-`play` / `pause` / `skip` / `none`
+响应：
 
 ```json
 {
-  "transcript": "我有点烦，来点适合现在的歌",
+  "transcript": "我现在有点累，但还想继续写代码",
   "emotion": {
-    "emotion": "frustrated",
+    "emotion": "tired",
     "energy": 0.3,
-    "need": "comfort"
+    "need": "focus"
   },
-  "current_state": "frustrated",
-  "bubble_text": "你现在有点紧绷，我先放一点柔和的。",
-  "assistant_reply": "我感觉你现在有点紧绷，先给你放一点舒缓但不太丧的。",
+  "current_state": "tired",
+  "bubble_text": "我给你找一点不吵、能托住注意力的歌。",
+  "assistant_reply": "先放一首节奏稳定但不刺激的，让你慢慢续上。",
   "recommendation": {
-    "id": "s001",
-    "title": "Midnight Rain",
-    "artist": "LoFi Dreams",
-    "tags": ["lofi", "calm", "night"],
-    "energy": 0.3,
-    "mood": "soothing",
-    "file_path": "C:/music/s001.mp3"
+    "id": "song-001",
+    "title": "示例歌曲",
+    "artist": "本地曲库",
+    "tags": ["essentia"],
+    "energy": 0.62,
+    "mood": "calm",
+    "file_path": "backend/music/example.mp3",
+    "description": "中速、响度适中、节奏稳定的器乐片段。",
+    "audio_features": {},
+    "semantic_features": {},
+    "play_count": 3,
+    "avg_completion_rate": 0.74
   },
   "play_action": "play",
-  "player_status": "loading"
+  "player_status": "playing",
+  "session_id": "a1b2c3",
+  "retrieval_query": "中低能量、节奏稳定、干扰少、适合持续专注的音乐",
+  "playlist": []
 }
 ```
 
-**错误响应**
+说明：
+
+| 字段 | 说明 |
+| --- | --- |
+| `session_id` | 本次播放会话 ID，前端上报播放事件时必须带上 |
+| `retrieval_query` | LLM 生成的音乐检索语言 |
+| `playlist` | Top 5 推荐队列，第一首通常等于 `recommendation` |
+| `emotion` | 兼容字段，不是新版推荐主依据 |
+
+常见错误：
 
 | 状态码 | 说明 |
-|--------|------|
-| 400 | 缺少 text 或 context 字段 |
-| 422 | 输入字段格式错误 |
-| 500 | LLM、推荐器或播放器控制异常 |
+| --- | --- |
+| 422 | 请求字段格式错误 |
+| 503 | 没有可用歌曲、歌曲缺少 embedding、或 embedding API 未配置 |
+| 500 | LLM、播放器或数据库异常 |
 
----
+### POST `/api/player/event`
 
-### 3. `POST /api/feedback`
+隐式反馈接口。前端不要再调用旧的显式反馈接口。播放结束、跳过或停止时，把完成率交给后端，用于更新 PlaySession、歌曲统计和用户画像。
 
-> 记录用户对推荐歌曲的反馈，用于更新记忆和后续推荐。
-
-**Request Body**
-
-
-| 字段       | 类型     | 必填  | 说明   |
-| -------- | ------ | --- | ---- |
-| song_id  | string | ✅   | 歌曲ID |
-| feedback | string | ✅   | 反馈类型 |
-
-
-可选 `feedback` 值：
-
-
-| 值             | 含义     |
-| ------------- | ------ |
-| `positive`    | 喜欢     |
-| `negative`    | 不喜欢    |
-| `too_quiet`   | 太安静了   |
-| `too_sad`     | 太悲伤了   |
-| `more_energy` | 想要更有力量 |
-
+请求：
 
 ```json
 {
-  "song_id": "s001",
-  "feedback": "positive"
+  "session_id": "a1b2c3",
+  "event": "ended",
+  "completion_rate": 0.9,
+  "ended_reason": "finished"
 }
 ```
 
-**Response `200 OK`**
+字段说明：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `session_id` | string | `/api/analyze` 返回的会话 ID |
+| `event` | string | 当前固定传 `ended` 即可 |
+| `completion_rate` | float | 完成率，范围 0-1 |
+| `ended_reason` | string | `finished`、`skipped`、`stopped`、`unknown` |
+
+响应：
 
 ```json
 {
   "status": "ok",
-  "message": "Feedback recorded"
+  "message": "Player event recorded"
 }
 ```
 
-**错误响应**
+常见错误：
 
+| 状态码 | 说明 |
+| --- | --- |
+| 404 | `session_id` 不存在 |
+| 422 | 完成率或结束原因格式错误 |
 
-| 状态码 | 说明                    |
-| --- | --------------------- |
-| 400 | 缺少 song_id 或 feedback |
-| 404 | song_id 不存在           |
-| 422 | feedback 值不在允许范围内     |
+### GET `/api/context`
 
+获取当前环境上下文。
 
----
-
-### 4. `GET /api/context`
-
-> 获取当前环境上下文。hour 和 active_app 由后端采集，kpm 和 backspace_ratio 由前端传入。
-
-**Query Parameters**
-
-| 参数 | 类型 | 必填 | 默认值 | 说明 |
-|------|------|------|--------|------|
-| kpm | integer | 否 | `0` | 前端采集的每分钟按键数 |
-| backspace_ratio | float | 否 | `0.0` | 前端采集的退格键比例（0-1） |
-
-**请求示例**
-
-```
-GET /api/context?kpm=160&backspace_ratio=0.22
-```
-
-**Response `200 OK`**
+响应：
 
 ```json
 {
-  "hour": 2,
+  "hour": 22,
   "active_app": "VSCode",
-  "kpm": 160,
-  "backspace_ratio": 0.22
+  "kpm": 0,
+  "backspace_ratio": 0.0
 }
 ```
 
-**错误响应**
+### GET `/api/memory`
 
+分页查询旧版记忆条目，主要用于调试。
 
-| 状态码 | 说明       |
-| --- | -------- |
-| 500 | 环境感知模块异常 |
-
-
----
-
-### 5. `GET /api/memory`
-
-> 查询历史记忆条目，支持分页。
-
-**Query Parameters**
-
-
-| 参数     | 类型      | 必填  | 默认值  | 说明   |
-| ------ | ------- | --- | ---- | ---- |
-| limit  | integer | ❌   | `20` | 每页条数 |
-| offset | integer | ❌   | `0`  | 偏移量  |
-
-
-**请求示例**
+请求示例：
 
 ```text
-GET /api/memory?limit=10&offset=0
+GET /api/memory?limit=20&offset=0
 ```
 
-**Response `200 OK`**
+响应：
 
 ```json
 {
-  "entries": [
-    {
-      "timestamp": "2025-01-15T02:30:00",
-      "context": {
-        "hour": 2,
-        "active_app": "VSCode",
-        "kpm": 160,
-        "backspace_ratio": 0.22
-      },
-      "emotion": {
-        "emotion": "frustrated",
-        "energy": 0.3,
-        "need": "comfort"
-      },
-      "song_id": "s001",
-      "feedback": "positive"
-    }
-  ],
-  "total": 42
+  "entries": [],
+  "total": 0
 }
 ```
 
----
+### GET `/api/player/status`
 
-### 6. `GET /api/player/status`
+查询 mpv 播放状态，前端可以轮询。
 
-> 获取 `mpv` 当前播放状态，供前端轮询展示。
-
-**Request**
-
-无请求参数。
-
-**Response `200 OK`**
+响应：
 
 ```json
 {
   "player": "mpv",
-  "status": "playing",
-  "track_id": "s001",
-  "title": "Midnight Rain",
-  "artist": "LoFi Dreams"
+  "status": "idle",
+  "track_id": null,
+  "title": null,
+  "artist": null
 }
 ```
 
-**错误响应**
+### GET `/api/music/random`
 
-| 状态码 | 说明 |
-|--------|------|
-| 500 | `mpv` 控制层异常 |
+调试接口：从曲库中随机返回一首歌。不参与新版推荐主链路。
 
----
-
-### 7. `GET /api/music/random`
-
-> 从本地曲库中随机返回一首歌曲。
-
-**Request**
-
-无请求参数。
-
-**Response `200 OK`**
+响应：
 
 ```json
 {
-  "id": "s001",
-  "title": "Midnight Rain",
-  "artist": "LoFi Dreams",
-  "file_path": "C:/music/s001.mp3"
+  "id": "song-001",
+  "title": "示例歌曲",
+  "artist": "本地曲库",
+  "tags": ["essentia"],
+  "energy": 0.62,
+  "mood": "calm",
+  "file_path": "backend/music/example.mp3",
+  "description": "中速、响度适中、节奏稳定的器乐片段。",
+  "audio_features": {},
+  "semantic_features": {},
+  "play_count": 3,
+  "avg_completion_rate": 0.74
 }
 ```
 
-**错误响应**
+如果曲库为空，返回 404。
 
+## 前端联调约定
 
-| 状态码 | 说明   |
-| --- | ---- |
-| 404 | 曲库为空 |
+前端目录保持为 `DyberPet-main/frontend/`。运行 DyberPet 时，`DyberPet-main` 是 Python 导入根目录，所以代码里继续使用 `from frontend...`。
 
-
----
-
-## 附录：推荐链路
+推荐交互流程：
 
 ```text
-1. 前端录音
-2. POST /api/transcribe
-3. 得到 transcript
-4. 前端采集 kpm / backspace_ratio
-5. 前端请求 GET /api/context?kpm=xx&backspace_ratio=xx，拿到完整 context
-6. POST /api/analyze(text + context)
-7. 后端做记忆检索、LLM 编排、歌曲推荐
-8. 后端控制 mpv 播放
-9. 前端轮询 GET /api/player/status
-10. 用户点击反馈后 POST /api/feedback
+1. 前端获取上下文：GET /api/context
+2. 前端提交文本：POST /api/analyze
+3. 前端保存响应里的 session_id
+4. 前端展示 current_state、bubble_text、recommendation、playlist
+5. 播放结束或用户点击 KEEP：POST /api/player/event，completion_rate=0.9，ended_reason=finished
+6. 用户点击 SKIP：POST /api/player/event，completion_rate=0.1，ended_reason=skipped
 ```
-
----
 
 ## 变更记录
 
 | 日期 | 版本 | 说明 |
-|------|------|------|
-| 2026-05-30 | v0.2 | 对齐 `DyberPet + faster-whisper + mpv` 黑客松架构，拆分 `transcribe` 与 `analyze`，补充播放器状态接口 |
+| --- | --- | --- |
+| 2026-05-31 | v2.0 | 删除旧显式反馈文档，改为 embedding 推荐、playlist 和 `/api/player/event` 隐式反馈 |
