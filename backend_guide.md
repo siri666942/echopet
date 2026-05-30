@@ -1,6 +1,8 @@
 # EchoPet 后端开发指南
 
 > 本文档为后端开发者提供完整的开发指导，包括技术栈、文件结构、模块职责和实现方案。
+>
+> 对齐黑客松架构：`DyberPet` 前端 + `faster-whisper` + `mpv` 播放
 
 ---
 
@@ -24,9 +26,10 @@
 | Web 框架 | FastAPI | 异步、自动文档、类型安全 |
 | 数据库 | SQLite | 轻量，单文件，MVP 阶段足够 |
 | ORM | SQLAlchemy 2.0 | 配合 SQLite，后续可迁移 |
-| 语音转文字 | OpenAI Whisper | 本地部署或 API 调用 |
+| 语音转文字 | faster-whisper | 本地部署，不依赖外部 API |
 | 情绪分析 | OpenAI GPT / Claude | LLM 推理 |
 | 音频处理 | pydub / ffmpeg | 音频格式转换 |
+| 播放器 | mpv | 后端通过 IPC 控制播放 |
 | 环境感知 | psutil + win32gui | 获取活跃窗口、系统信息 |
 | 配置管理 | pydantic-settings | .env 环境变量管理 |
 | 测试 | pytest + httpx | 单元测试 + 接口测试 |
@@ -39,13 +42,15 @@ uvicorn[standard]
 sqlalchemy>=2.0
 pydantic>=2.0
 pydantic-settings
-openai          # Whisper + GPT
-anthropic       # Claude（可选）
+faster-whisper   # 本地语音转文字
+openai           # GPT 情绪分析
+anthropic        # Claude（可选）
 psutil
 pydub
 pytest
 httpx
-python-multipart   # 文件上传支持
+python-multipart # 文件上传支持
+python-mpv       # mpv IPC 控制
 ```
 
 ---
@@ -60,20 +65,23 @@ backend/
 │
 ├── api/                     # 路由层（只做参数校验和转发）
 │   ├── __init__.py
+│   ├── transcribe.py        # POST /api/transcribe
 │   ├── analyze.py           # POST /api/analyze
 │   ├── feedback.py          # POST /api/feedback
 │   ├── context.py           # GET  /api/context
 │   ├── memory.py            # GET  /api/memory
+│   ├── player.py            # GET  /api/player/status
 │   └── music.py             # GET  /api/music/random
 │
 ├── services/                # 业务逻辑层
 │   ├── __init__.py
-│   ├── whisper_service.py   # Whisper 语音转文字
+│   ├── whisper_service.py   # faster-whisper 语音转文字
 │   ├── emotion_service.py   # LLM 情绪分析
 │   ├── context_service.py   # 环境感知采集
 │   ├── memory_service.py    # 记忆读写
 │   ├── recommender.py       # 推荐算法
-│   └── music_service.py     # 曲库管理
+│   ├── music_service.py     # 曲库管理
+│   └── player_service.py    # mpv 播放器控制
 │
 ├── models/                  # 数据模型
 │   ├── __init__.py
@@ -90,10 +98,12 @@ backend/
 └── tests/                   # 测试
     ├── __init__.py
     ├── conftest.py          # pytest fixtures
+    ├── test_transcribe.py
     ├── test_analyze.py
     ├── test_feedback.py
     ├── test_context.py
     ├── test_memory.py
+    ├── test_player.py
     └── test_music.py
 ```
 
@@ -120,12 +130,16 @@ pip install -r requirements.txt
 创建 `.env` 文件：
 
 ```env
-# API Keys
+# API Keys（LLM 情绪分析）
 OPENAI_API_KEY=sk-xxx
 ANTHROPIC_API_KEY=sk-ant-xxx
 
-# Whisper
+# faster-whisper
 WHISPER_MODEL=base          # tiny / base / small / medium / large
+WHISPER_DEVICE=cpu          # cpu / cuda
+
+# mpv
+MPV_BINARY=mpv              # mpv 可执行路径，PATH 中有时可省略
 
 # 数据库
 DATABASE_URL=sqlite:///db/echopet.db
@@ -154,22 +168,25 @@ uvicorn main:app --reload --host 127.0.0.1 --port 8000
 
 | 文件 | 职责 | 不负责 |
 |------|------|--------|
-| analyze.py | 接收请求、校验参数、调用 services、返回响应 | 不做业务逻辑 |
+| transcribe.py | 接收音频 base64，调用 whisper_service，返回文本 | 不做转写逻辑 |
+| analyze.py | 接收 text + context，调用 emotion + recommender + player | 不做业务逻辑 |
 | feedback.py | 接收反馈、校验枚举值、调用 memory_service | — |
 | context.py | 调用 context_service、返回结果 | — |
 | memory.py | 解析分页参数、调用 memory_service | — |
+| player.py | 调用 player_service 返回 mpv 播放状态 | — |
 | music.py | 调用 music_service 返回随机歌曲 | — |
 
 ### services/ — 业务逻辑层
 
 | 文件 | 职责 |
 |------|------|
-| whisper_service.py | 将 base64 音频 → 转写文本 |
+| whisper_service.py | 调用 faster-whisper 将 base64 音频 → 转写文本 |
 | emotion_service.py | 将文本 + context → 情绪分析结果（调用 LLM） |
 | context_service.py | 采集当前环境信息（时间、活跃窗口、键盘频率） |
 | memory_service.py | 读写 memory 表，检索相似场景 |
 | recommender.py | 根据 context + emotion + memory → 推荐歌曲 |
 | music_service.py | 管理曲库（扫描目录、随机取歌、按ID查询） |
+| player_service.py | 控制 mpv 播放（play/pause/skip）+ 查询播放状态 |
 
 ### models/ — 数据模型层
 
@@ -185,11 +202,13 @@ uvicorn main:app --reload --host 127.0.0.1 --port 8000
 
 | # | 方法 | 路由 | 路由文件 | 核心 Service | 说明 |
 |---|------|------|----------|-------------|------|
-| 1 | POST | `/api/analyze` | api/analyze.py | whisper + emotion + recommender | 核心接口，语音→情绪→推荐 |
-| 2 | POST | `/api/feedback` | api/feedback.py | memory_service | 记录用户反馈 |
-| 3 | GET | `/api/context` | api/context.py | context_service | 获取环境上下文 |
-| 4 | GET | `/api/memory` | api/memory.py | memory_service | 查询历史记忆（分页） |
-| 5 | GET | `/api/music/random` | api/music.py | music_service | 随机返回一首歌 |
+| 1 | POST | `/api/transcribe` | api/transcribe.py | whisper_service | 音频转文本（faster-whisper） |
+| 2 | POST | `/api/analyze` | api/analyze.py | emotion + recommender + player | 文本→情绪→推荐→控制 mpv |
+| 3 | POST | `/api/feedback` | api/feedback.py | memory_service | 记录用户反馈 |
+| 4 | GET | `/api/context` | api/context.py | context_service | 获取环境上下文 |
+| 5 | GET | `/api/memory` | api/memory.py | memory_service | 查询历史记忆（分页） |
+| 6 | GET | `/api/player/status` | api/player.py | player_service | 获取 mpv 播放状态 |
+| 7 | GET | `/api/music/random` | api/music.py | music_service | 随机返回一首歌 |
 
 ---
 
@@ -268,8 +287,13 @@ class ContextModel(BaseModel):
     kpm: int = Field(ge=0)
     backspace_ratio: float = Field(ge=0.0, le=1.0)
 
+class TranscribeRequest(BaseModel):
+    audio: str               # base64 编码的音频
+    audio_format: str = "wav"
+
 class AnalyzeRequest(BaseModel):
-    audio: str              # base64 编码的音频
+    text: str                # 用户输入文本（直接输入或来自 transcribe）
+    input_source: str = Field(pattern="^(text|faster_whisper)$")
     context: ContextModel
 
 class FeedbackRequest(BaseModel):
@@ -277,6 +301,11 @@ class FeedbackRequest(BaseModel):
     feedback: str = Field(pattern="^(positive|negative|too_quiet|too_sad|more_energy)$")
 
 # --- 响应模型 ---
+
+class TranscribeResponse(BaseModel):
+    transcript: str
+    language: str = "zh"
+    source: str = "faster-whisper"
 
 class EmotionResult(BaseModel):
     emotion: str
@@ -287,12 +316,27 @@ class SongResponse(BaseModel):
     id: str
     title: str
     artist: str
+    tags: list[str]
+    energy: float
+    mood: str
     file_path: str
 
 class AnalyzeResponse(BaseModel):
     transcript: str
     emotion: EmotionResult
+    current_state: str       # idle / focus / tired / frustrated / sad
+    bubble_text: str         # 桌宠气泡文案
+    assistant_reply: str     # 对用户的回复
     recommendation: SongResponse
+    play_action: str         # play / pause / skip / none
+    player_status: str       # idle / loading / playing / paused / error
+
+class PlayerStatusResponse(BaseModel):
+    player: str = "mpv"
+    status: str              # idle / loading / playing / paused / error
+    track_id: Optional[str] = None
+    title: Optional[str] = None
+    artist: Optional[str] = None
 
 class FeedbackResponse(BaseModel):
     status: str = "ok"
@@ -317,34 +361,34 @@ class MemoryResponse(BaseModel):
 ```python
 import base64
 import tempfile
-from openai import OpenAI
+from faster_whisper import WhisperModel
 from config import settings
 
-client = OpenAI(api_key=settings.OPENAI_API_KEY)
+# 启动时加载模型（避免每次请求都加载）
+model = WhisperModel(settings.WHISPER_MODEL, device="cpu", compute_type="int8")
 
-async def transcribe(audio_base64: str) -> str:
-    """将 base64 音频转为文本"""
+async def transcribe(audio_base64: str, audio_format: str = "wav") -> dict:
+    """将 base64 音频转为文本，返回 transcript + language"""
     audio_bytes = base64.b64decode(audio_base64)
 
-    # 写入临时文件（Whisper API 需要文件对象）
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+    with tempfile.NamedTemporaryFile(suffix=f".{audio_format}", delete=False) as f:
         f.write(audio_bytes)
         temp_path = f.name
 
-    with open(temp_path, "rb") as f:
-        result = client.audio.transcriptions.create(
-            model=settings.WHISPER_MODEL,
-            file=f,
-            language="zh"
-        )
+    segments, info = model.transcribe(temp_path, language="zh", beam_size=5)
+    transcript = " ".join([seg.text for seg in segments])
 
-    return result.text
+    return {
+        "transcript": transcript.strip(),
+        "language": info.language
+    }
 ```
 
 **实现要点：**
-- 支持 wav / mp3 / m4a 格式，Whisper 自动识别
-- `language="zh"` 指定中文，提升识别准确率
-- 后续可改为本地 Whisper 模型部署，避免 API 费用
+- `faster-whisper` 本地运行，不依赖外部 API，无网络费用
+- 模型启动时加载一次，后续请求复用
+- `device="cpu"` 适配无 GPU 环境；有 GPU 可改为 `"cuda"`
+- `compute_type="int8"` 降低内存占用，MVP 阶段够用
 
 ---
 
@@ -531,7 +575,72 @@ def recommend(db: Session, emotion: EmotionResult, context: dict) -> Song | None
 
 ---
 
-### 模块 6：曲库管理（services/music_service.py）
+### 模块 6：mpv 播放器控制（services/player_service.py）
+
+```python
+import mpv
+from config import settings
+
+# 初始化 mpv 实例
+player = mpv.MPV(
+    input_default_bindings=True,
+    input_vo_keyboard=True,
+    idle=True
+)
+
+_current_track: dict | None = None
+_status: str = "idle"  # idle / loading / playing / paused / error
+
+def play(file_path: str, track_id: str, title: str, artist: str):
+    """播放指定歌曲"""
+    global _current_track, _status
+    _status = "loading"
+    _current_track = {
+        "track_id": track_id,
+        "title": title,
+        "artist": artist
+    }
+    try:
+        player.play(file_path)
+        player.wait_for_playing()
+        _status = "playing"
+    except Exception as e:
+        _status = "error"
+        print(f"mpv play error: {e}")
+
+def pause():
+    """暂停/恢复"""
+    global _status
+    player.cycle("pause")
+    _status = "paused" if _status == "playing" else "playing"
+
+def skip():
+    """跳过当前（停止播放）"""
+    global _status, _current_track
+    player.stop()
+    _status = "idle"
+    _current_track = None
+
+def get_status() -> dict:
+    """获取当前播放状态"""
+    return {
+        "player": "mpv",
+        "status": _status,
+        "track_id": _current_track["track_id"] if _current_track else None,
+        "title": _current_track["title"] if _current_track else None,
+        "artist": _current_track["artist"] if _current_track else None,
+    }
+```
+
+**实现要点：**
+- `python-mpv` 通过 IPC 控制 mpv 进程，无需自己实现播放器
+- `idle=True` 让 mpv 启动后不立即退出，等待播放指令
+- `wait_for_playing()` 确认播放开始后再更新状态
+- 后续可监听 mpv 的 `end-file` 事件实现自动播放下一首
+
+---
+
+### 模块 7：曲库管理（services/music_service.py）
 
 ```python
 import os
@@ -581,46 +690,115 @@ def get_song_by_id(db: Session, song_id: str) -> Song | None:
 
 ---
 
-### 模块 7：API 路由示例（api/analyze.py）
+### 模块 8：API 路由示例
+
+**api/transcribe.py**
+
+```python
+from fastapi import APIRouter
+from models.schemas import TranscribeRequest, TranscribeResponse
+from services import whisper_service
+
+router = APIRouter()
+
+@router.post("/api/transcribe", response_model=TranscribeResponse)
+async def transcribe(req: TranscribeRequest):
+    result = await whisper_service.transcribe(req.audio, req.audio_format)
+    return TranscribeResponse(
+        transcript=result["transcript"],
+        language=result["language"],
+        source="faster-whisper"
+    )
+```
+
+**api/analyze.py**
 
 ```python
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from models.database import get_db
 from models.schemas import AnalyzeRequest, AnalyzeResponse
-from services import whisper_service, emotion_service, context_service, recommender
+from services import emotion_service, recommender, player_service
+from services.memory_service import save_memory
 
 router = APIRouter()
 
 @router.post("/api/analyze", response_model=AnalyzeResponse)
 async def analyze(req: AnalyzeRequest, db: Session = Depends(get_db)):
-    # 1. 语音转文字
-    transcript = await whisper_service.transcribe(req.audio)
+    # 1. 情绪分析
+    emotion = await emotion_service.analyze_emotion(req.text, req.context)
 
-    # 2. 情绪分析
-    emotion = await emotion_service.analyze_emotion(transcript, req.context)
-
-    # 3. 推荐歌曲
+    # 2. 推荐歌曲
     context_dict = req.context.model_dump()
     song = recommender.recommend(db, emotion, context_dict)
 
     if song is None:
         raise HTTPException(status_code=404, detail="曲库为空，无法推荐")
 
-    # 4. 保存记忆
-    from services.memory_service import save_memory
+    # 3. 保存记忆（反馈待用户后续提交）
     save_memory(db, req.context, emotion, song.id)
 
+    # 4. 控制 mpv 播放
+    player_service.play(song.file_path, song.id, song.title, song.artist)
+
+    # 5. 生成桌宠状态和文案
+    current_state = _map_emotion_to_state(emotion.emotion)
+    bubble_text = _generate_bubble_text(emotion)
+    assistant_reply = _generate_reply(emotion, song)
+
     return AnalyzeResponse(
-        transcript=transcript,
+        transcript=req.text,
         emotion=emotion,
+        current_state=current_state,
+        bubble_text=bubble_text,
+        assistant_reply=assistant_reply,
         recommendation={
             "id": song.id,
             "title": song.title,
             "artist": song.artist,
-            "file_path": song.file_path
-        }
+            "tags": song.tags,
+            "energy": song.energy,
+            "mood": song.mood,
+            "file_path": song.file_path,
+        },
+        play_action="play",
+        player_status="loading",
     )
+
+def _map_emotion_to_state(emotion: str) -> str:
+    mapping = {
+        "frustrated": "frustrated", "sad": "sad", "tired": "tired",
+        "anxious": "frustrated", "happy": "focus", "focused": "focus", "calm": "idle",
+    }
+    return mapping.get(emotion, "idle")
+
+def _generate_bubble_text(emotion) -> str:
+    # MVP 阶段用模板，后续可接入 LLM 生成
+    templates = {
+        "comfort": "你现在有点紧绷，我先放一点柔和的。",
+        "focus": "来点专注的音乐吧。",
+        "energy": "给你加点能量！",
+        "relaxation": "放松一下，听点轻松的。",
+        "companionship": "我在这里陪你。",
+    }
+    return templates.get(emotion.need, "我来给你选首歌。")
+
+def _generate_reply(emotion, song) -> str:
+    return f"我感觉你现在需要{emotion.need}，给你放 {song.title}。"
+```
+
+**api/player.py**
+
+```python
+from fastapi import APIRouter
+from models.schemas import PlayerStatusResponse
+from services import player_service
+
+router = APIRouter()
+
+@router.get("/api/player/status", response_model=PlayerStatusResponse)
+async def get_player_status():
+    return player_service.get_status()
 ```
 
 ---
@@ -629,32 +807,37 @@ async def analyze(req: AnalyzeRequest, db: Session = Depends(get_db)):
 
 ```python
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from models.database import init_db
+from models.database import init_db, SessionLocal
 from services.music_service import scan_music_dir
-from models.database import SessionLocal
-from api import analyze, feedback, context, memory, music
+from api import transcribe, analyze, feedback, context, memory, player, music
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 启动时初始化
     init_db()
     db = SessionLocal()
     scan_music_dir(db)
     db.close()
     yield
 
-app = FastAPI(
-    title="EchoPet API",
-    version="0.1.0",
-    lifespan=lifespan
+app = FastAPI(title="EchoPet API", version="0.2.0", lifespan=lifespan)
+
+# CORS（DyberPet 前端跨域调用）
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # 挂载路由
+app.include_router(transcribe.router)
 app.include_router(analyze.router)
 app.include_router(feedback.router)
 app.include_router(context.router)
 app.include_router(memory.router)
+app.include_router(player.router)
 app.include_router(music.router)
 
 @app.get("/")
@@ -668,33 +851,36 @@ def root():
 
 按依赖关系和可测试性排序：
 
-```
-Phase 1 — 基础骨架（Day 1-2）
+```text
+Phase 1 — 基础骨架（Day 1）
 ├── models/database.py       # 数据库连接
 ├── models/tables.py         # 表定义
-├── models/schemas.py        # Pydantic 模型
+├── models/schemas.py        # Pydantic 模型（7个接口全部定义）
 ├── config.py                # 配置
-├── main.py                  # 入口
+├── main.py                  # 入口（含 CORS）
 └── 验证：启动服务，访问 /docs 看到空路由
 
-Phase 2 — 静态接口（Day 3-4）
+Phase 2 — 静态接口（Day 2）
 ├── services/music_service.py   # 曲库管理
 ├── services/context_service.py # 环境感知（先 mock）
+├── services/player_service.py  # mpv 控制
 ├── api/music.py                # GET /api/music/random
 ├── api/context.py              # GET /api/context
-└── 验证：手动放几首 mp3，调通这两个 GET 接口
+├── api/player.py               # GET /api/player/status
+└── 验证：手动放几首 mp3，调通三个 GET 接口
 
-Phase 3 — 核心链路（Day 5-8）
-├── services/whisper_service.py  # 语音转文字
-├── services/emotion_service.py  # 情绪分析
+Phase 3 — 核心链路（Day 3-5）
+├── services/whisper_service.py  # faster-whisper 语音转文字
+├── services/emotion_service.py  # LLM 情绪分析
 ├── services/recommender.py      # 推荐算法
 ├── services/memory_service.py   # 记忆读写
+├── api/transcribe.py            # POST /api/transcribe
 ├── api/analyze.py               # POST /api/analyze
 ├── api/feedback.py              # POST /api/feedback
 ├── api/memory.py                # GET /api/memory
-└── 验证：用真实音频测试完整链路 analyze → feedback
+└── 验证：完整链路 transcribe → analyze → player/status → feedback
 
-Phase 4 — 打磨（Day 9-10）
+Phase 4 — 打磨（Day 6）
 ├── 错误处理完善
 ├── 接口参数校验补全
 ├── 单元测试编写
@@ -706,8 +892,9 @@ Phase 4 — 打磨（Day 9-10）
 
 ## 注意事项
 
-1. **CORS**：前端 Electron/Tauri 通过 HTTP 调用后端，需在 main.py 添加 CORS 中间件
-2. **Whisper 成本**：API 调用按音频时长计费，MVP 阶段可用 `tiny` 模型降低成本
-3. **曲库目录**：music/ 目录需手动放入 mp3 文件，或提供上传接口
-4. **SQLite 并发**：SQLite 写操作串行，MVP 阶段够用；用户量增长后迁移 PostgreSQL
-5. **键盘监听**：`win32gui` 仅支持 Windows，跨平台需条件判断
+1. **CORS**：DyberPet 前端通过 HTTP 调用后端，已在 main.py 配置 CORS 中间件
+2. **faster-whisper**：本地部署，无 API 费用；首次启动需下载模型（~140MB for base），之后缓存本地
+3. **mpv 依赖**：需确保系统已安装 mpv，`python-mpv` 通过 IPC 与之通信
+4. **曲库目录**：music/ 目录需手动放入 mp3 文件，file_path 存绝对路径供 mpv 直接播放
+5. **SQLite 并发**：SQLite 写操作串行，MVP 阶段够用；用户量增长后迁移 PostgreSQL
+6. **键盘监听**：`win32gui` 仅支持 Windows，跨平台需条件判断
