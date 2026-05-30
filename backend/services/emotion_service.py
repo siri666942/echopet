@@ -75,7 +75,7 @@ async def analyze_emotion(text: str, context: ContextModel) -> EmotionResult:
 async def _analyze_with_openai(text: str, context: ContextModel) -> EmotionResult:
     """调用 OpenAI 做情绪分析。
 
-    这是“更智能”的路径，但依赖网络和 API Key。
+    这是"更智能"的路径，但依赖网络和 API Key。
 
     注意：
         这个函数里用的是同步 OpenAI client。
@@ -85,7 +85,10 @@ async def _analyze_with_openai(text: str, context: ContextModel) -> EmotionResul
 
     from openai import OpenAI
 
-    client = OpenAI(api_key=settings.openai_api_key)
+    client = OpenAI(
+        api_key=settings.openai_api_key,
+        base_url=settings.openai_base_url,
+    )
     response = client.chat.completions.create(
         model=settings.openai_model,
         messages=[

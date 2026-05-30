@@ -25,7 +25,7 @@ _player = None
 _status = "idle"
 
 # 当前歌曲信息。
-# 即使 mpv 播放失败，我们也保留这份信息，方便前端展示“刚才尝试播放哪首”。
+# 即使 mpv 播放失败，我们也保留这份信息，方便前端展示"刚才尝试播放哪首"。
 _current_track: dict[str, str] | None = None
 
 
@@ -103,7 +103,7 @@ def reset_for_tests() -> None:
 def _get_player():
     """懒加载 mpv 播放器实例。
 
-    “懒加载”的意思是：
+    "懒加载"的意思是：
         服务启动时不马上创建 mpv；
         第一次真正播放时才创建。
 

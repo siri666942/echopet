@@ -4,7 +4,7 @@
 
 用途：
     - 前端调试曲库是否可用。
-    - 后续也可以用于“随便来一首”的功能。
+    - 后续也可以用于"随便来一首"的功能。
 """
 
 from fastapi import APIRouter, Depends, HTTPException

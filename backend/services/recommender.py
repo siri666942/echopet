@@ -1,84 +1,84 @@
-"""歌曲推荐服务。
+"""Embedding 推荐器。"""
 
-推荐器现在是一个简单但可解释的算法。
-
-它主要看两件事：
-
-1. 用户历史反馈
-   - 如果用户在相似时间、相似应用里喜欢过某首歌，给它加分。
-
-2. 能量值匹配
-   - 情绪分析会给出 emotion.energy。
-   - 歌曲也有 song.energy。
-   - 两者越接近，越适合。
-
-最后选分数最高的歌。
-"""
+import json
+from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
 
-from backend.models.schemas import ContextModel, EmotionResult
-from backend.models.tables import Memory, Song
+from backend.models.schemas import ContextModel
+from backend.models.tables import PlaySession, Song
+from backend.services.embedding_service import cosine_similarity, embed_text
+from backend.services.serialization import parse_dict
 
 
-def recommend(db: Session, emotion: EmotionResult, context: ContextModel) -> Song | None:
-    """根据情绪和上下文推荐歌曲。
+def recommend_playlist(
+    db: Session,
+    retrieval_query: str,
+    context: ContextModel,
+    user_profile: dict,
+    top_k: int = 5,
+    recall_k: int = 20,
+) -> list[Song]:
+    query_embedding = embed_text(retrieval_query)
+    candidates: list[tuple[float, Song]] = []
 
-    参数：
-        db:
-            数据库会话。
+    for song in db.query(Song).all():
+        try:
+            song_embedding = json.loads(song.embedding or "[]")
+        except json.JSONDecodeError:
+            song_embedding = []
+        if not song_embedding:
+            continue
 
-        emotion:
-            当前情绪分析结果。
+        semantic_score = cosine_similarity(query_embedding, song_embedding)
+        feedback_score = calc_feedback_score(song)
+        profile_score = calc_profile_score(song, user_profile)
+        repeat_penalty = calc_recent_repeat_penalty(db, song)
 
-        context:
-            当前环境上下文。
-
-    返回：
-        Song 或 None。
-        如果曲库为空，就返回 None。
-    """
-
-    # 相似时间：当前小时前后 2 小时。
-    # 例如现在 23 点，就看 21、22、23。
-    # 注意 range 右边不包含，所以 min(24, hour + 3)。
-    hour_range = range(max(0, context.hour - 2), min(24, context.hour + 3))
-
-    # 找历史上“相似时间 + 相同应用 + 用户点过 positive”的记忆。
-    positive_memories = (
-        db.query(Memory)
-        .filter(
-            Memory.hour.in_(hour_range),
-            Memory.active_app == context.active_app,
-            Memory.feedback == "positive",
+        final_score = (
+            semantic_score * 0.65
+            + feedback_score * 0.20
+            + profile_score * 0.10
+            - repeat_penalty * 0.05
         )
-        .all()
+        candidates.append((final_score, song))
+
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    recalled = candidates[:recall_k]
+    return [song for _, song in recalled[:top_k]]
+
+
+def calc_feedback_score(song: Song) -> float:
+    completion = song.avg_completion_rate or 0.0
+    skip_penalty = min((song.skip_count or 0) * 0.05, 0.5)
+    play_bonus = min((song.play_count or 0) * 0.01, 0.1)
+    return max(0.0, min(1.0, completion + play_bonus - skip_penalty))
+
+
+def calc_profile_score(song: Song, user_profile: dict) -> float:
+    description = (song.description or "").lower()
+    semantic = parse_dict(song.semantic_features)
+    likes = user_profile.get("global_likes", [])
+    dislikes = user_profile.get("global_dislikes", [])
+    implicit = user_profile.get("implicit_patterns", {})
+    high_completion = implicit.get("high_completion_descriptions", [])
+    frequent_skip = implicit.get("frequent_skip_descriptions", [])
+
+    score = 0.0
+    for term in likes + high_completion:
+        if str(term).lower() in description or str(term).lower() in json.dumps(semantic, ensure_ascii=False).lower():
+            score += 0.15
+    for term in dislikes + frequent_skip:
+        if str(term).lower() in description:
+            score -= 0.15
+    return max(-1.0, min(1.0, score))
+
+
+def calc_recent_repeat_penalty(db: Session, song: Song) -> float:
+    cutoff = datetime.now() - timedelta(hours=2)
+    recent = (
+        db.query(PlaySession)
+        .filter(PlaySession.song_id == song.id, PlaySession.timestamp >= cutoff)
+        .count()
     )
-
-    # song_scores 记录历史偏好分。
-    # 用户每在相似场景喜欢过一次这首歌，就 +1。
-    song_scores: dict[str, float] = {}
-    for memory in positive_memories:
-        song_scores[memory.song_id] = song_scores.get(memory.song_id, 0.0) + 1.0
-
-    songs = db.query(Song).all()
-    if not songs:
-        return None
-
-    def score(song: Song) -> float:
-        """计算单首歌得分。
-
-        得分 = 历史偏好分 + 能量匹配分
-
-        能量匹配分：
-            `1.0 - abs(song.energy - emotion.energy)`
-
-        例子：
-            用户能量 0.3，歌曲能量 0.3 -> 1.0 分
-            用户能量 0.3，歌曲能量 0.8 -> 0.5 分
-        """
-
-        energy_match = 1.0 - abs(song.energy - emotion.energy)
-        return song_scores.get(song.id, 0.0) + energy_match
-
-    return max(songs, key=score)
+    return min(float(recent) * 0.2, 1.0)

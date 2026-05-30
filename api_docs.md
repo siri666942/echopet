@@ -27,12 +27,12 @@
 ### Context（环境上下文）
 
 
-| 字段              | 类型      | 说明         | 示例         |
-| --------------- | ------- | ---------- | ---------- |
-| hour            | integer | 当前小时（0-23） | `2`        |
-| active_app      | string  | 当前活跃应用     | `"VSCode"` |
-| kpm             | integer | 每分钟按键次数    | `160`      |
-| backspace_ratio | float   | 退格键占比（0-1） | `0.22`     |
+| 字段              | 类型      | 说明                           | 示例         |
+| --------------- | ------- | ---------------------------- | ---------- |
+| hour            | integer | 当前小时（0-23），后端采集           | `2`        |
+| active_app      | string  | 当前活跃应用，后端采集               | `"VSCode"` |
+| kpm             | integer | 每分钟按键次数，**前端采集**          | `160`      |
+| backspace_ratio | float   | 退格键占比（0-1），**前端采集**       | `0.22`     |
 
 
 ```json
@@ -325,11 +325,20 @@
 
 ### 4. `GET /api/context`
 
-> 获取当前环境上下文信息。由后端环境感知模块实时采集。
+> 获取当前环境上下文。hour 和 active_app 由后端采集，kpm 和 backspace_ratio 由前端传入。
 
-**Request**
+**Query Parameters**
 
-无请求参数。
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| kpm | integer | 否 | `0` | 前端采集的每分钟按键数 |
+| backspace_ratio | float | 否 | `0.0` | 前端采集的退格键比例（0-1） |
+
+**请求示例**
+
+```
+GET /api/context?kpm=160&backspace_ratio=0.22
+```
 
 **Response `200 OK`**
 
@@ -462,12 +471,13 @@ GET /api/memory?limit=10&offset=0
 1. 前端录音
 2. POST /api/transcribe
 3. 得到 transcript
-4. 前端请求 GET /api/context
-5. POST /api/analyze(text + context)
-6. 后端做记忆检索、LLM 编排、歌曲推荐
-7. 后端控制 mpv 播放
-8. 前端轮询 GET /api/player/status
-9. 用户点击反馈后 POST /api/feedback
+4. 前端采集 kpm / backspace_ratio
+5. 前端请求 GET /api/context?kpm=xx&backspace_ratio=xx，拿到完整 context
+6. POST /api/analyze(text + context)
+7. 后端做记忆检索、LLM 编排、歌曲推荐
+8. 后端控制 mpv 播放
+9. 前端轮询 GET /api/player/status
+10. 用户点击反馈后 POST /api/feedback
 ```
 
 ---

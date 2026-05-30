@@ -1,14 +1,16 @@
-"""`GET /api/player/status` 播放器状态接口。
+"""播放器相关接口。"""
 
-前端需要知道后端现在有没有在播歌，正在播哪首。
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 
-这个接口不直接控制播放器，只查询 `player_service` 里维护的当前状态。
-"""
-
-from fastapi import APIRouter
-
-from backend.models.schemas import PlayerStatusResponse
+from backend.models.database import get_db
+from backend.models.schemas import (
+    PlayerEventRequest,
+    PlayerEventResponse,
+    PlayerStatusResponse,
+)
 from backend.services import player_service
+from backend.services.play_session_service import record_player_event
 
 
 router = APIRouter(prefix="/api", tags=["player"])
@@ -16,14 +18,20 @@ router = APIRouter(prefix="/api", tags=["player"])
 
 @router.get("/player/status", response_model=PlayerStatusResponse)
 async def player_status() -> PlayerStatusResponse:
-    """返回当前播放器状态。
-
-    可能的 status：
-        - idle: 空闲
-        - loading: 正在准备播放
-        - playing: 正在播放
-        - paused: 暂停
-        - error: 播放失败，例如没安装 mpv
-    """
-
     return PlayerStatusResponse(**player_service.get_status())
+
+
+@router.post("/player/event", response_model=PlayerEventResponse)
+async def player_event(
+    req: PlayerEventRequest,
+    db: Session = Depends(get_db),
+) -> PlayerEventResponse:
+    session = record_player_event(
+        db=db,
+        session_id=req.session_id,
+        completion_rate=req.completion_rate,
+        ended_reason=req.ended_reason,
+    )
+    if session is None:
+        raise HTTPException(status_code=404, detail="session_id does not exist")
+    return PlayerEventResponse()

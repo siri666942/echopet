@@ -102,7 +102,7 @@ echopet/
 
 - Whisper 语音转写调用
 - LLM 情绪分析调用
-- 环境感知（时间、当前应用、键盘节奏）
+- 环境感知（时间、当前应用）
 - Memory 读写和检索
 - 推荐算法
 - 曲库管理
@@ -112,6 +112,7 @@ echopet/
 - 桌宠 UI 渲染
 - 录音采集（前端负责）
 - 音乐播放（前端负责）
+- 键盘节奏采集（前端负责，通过 context 传入）
 
 ---
 
@@ -133,57 +134,53 @@ echopet/
 
 ## 各模块实现指南
 
-### 1. 环境感知模块 (`services/environment.py`)
+### 1. 环境感知模块 (`services/context_service.py`)
 
-**职责**：采集当前桌面环境信息，生成 Context 对象。
+**职责**：采集后端可获取的环境信息（hour、active_app），接收前端传入的键盘数据（kpm、backspace_ratio），组装 Context 对象。
+
+**字段来源**：
+
+| 字段 | 来源 | 说明 |
+|------|------|------|
+| hour | 后端 | 系统时间 |
+| active_app | 后端 | Windows 前台窗口（pywin32） |
+| kpm | **前端** | 前端采集后通过 query 参数传入 |
+| backspace_ratio | **前端** | 前端采集后通过 query 参数传入 |
 
 **实现思路**：
 
 ```python
-# services/environment.py
+# services/context_service.py
 
-import time
-import psutil
+from datetime import datetime
 
-def get_current_context() -> dict:
+def get_current_context(kpm: int = 0, backspace_ratio: float = 0.0) -> dict:
     return {
-        "hour": _get_hour(),
-        "active_app": _get_active_app(),
-        "kpm": _get_kpm(),
-        "backspace_ratio": _get_backspace_ratio(),
+        "hour": datetime.now().hour,
+        "active_app": get_active_app(),
+        "kpm": kpm,                    # 前端传入，不传默认 0
+        "backspace_ratio": backspace_ratio,  # 前端传入，不传默认 0.0
     }
 
-def _get_hour() -> int:
-    """当前小时（0-23）"""
-    from datetime import datetime
-    return datetime.now().hour
-
-def _get_active_app() -> str:
+def get_active_app() -> str:
     """获取当前前台应用名称"""
-    # Windows: 用 pywin32 获取前台窗口标题
-    # macOS:   用 subprocess 调用 osascript
-    # Linux:   用 subprocess 调用 xdotool
-    import platform
-    if platform.system() == "Windows":
+    try:
+        import psutil
         import win32gui
+        import win32process
         hwnd = win32gui.GetForegroundWindow()
-        return win32gui.GetWindowText(hwnd)
-    ...
-
-def _get_kpm() -> int:
-    """每分钟按键次数 — 需要全局键盘监听"""
-    # 方案1: pynput 监听键盘事件，统计最近 60s 的按键次数
-    # 方案2: 前端采集后通过 context 传入（推荐，后端无需监听）
-    return 0  # MVP 阶段可先返回默认值
-
-def _get_backspace_ratio() -> float:
-    """退格键占比 — 同上，建议前端采集"""
-    return 0.0
+        _, pid = win32process.GetWindowThreadProcessId(hwnd)
+        return psutil.Process(pid).name().replace(".exe", "")
+    except Exception:
+        return "Unknown"
 ```
 
-**依赖**：`psutil`、`pywin32`（Windows）、`pynput`（可选）
+**依赖**：`psutil`、`pywin32`（Windows）
 
-**注意**：`kpm` 和 `backspace_ratio` 建议由前端采集后通过 `/api/analyze` 的 context 字段传入，后端直接使用即可，避免全局键盘监听的权限问题。
+**调用方式**：
+
+- `GET /api/context?kpm=160&backspace_ratio=0.22` — 前端通过 query 参数传入
+- `POST /api/analyze` — 前端在请求体 `context` 字段中直接传入
 
 ---
 

@@ -76,13 +76,14 @@
 - 录音
 - 状态展示（气泡文案、桌宠状态切换）
 - 用户反馈
+- 键盘节奏采集（kpm、backspace_ratio），通过 context 传给后端
 
 不负责：
 
 - 音乐播放（由后端控制 mpv）
 - Memory
 - 推荐算法
-- 环境感知
+- 环境感知（时间、当前应用由后端采集）
 
 ---
 
@@ -92,7 +93,7 @@
 
 - faster-whisper 调用
 - LLM 调用
-- 环境感知
+- 环境感知（时间、当前应用；键盘数据由前端传入）
 - Memory
 - 推荐器
 - 曲库管理
@@ -106,15 +107,17 @@
 
 2. POST /api/transcribe → faster-whisper → 得到 transcript
 
-3. 前端请求 GET /api/context → 获取环境上下文
+3. 前端采集 kpm / backspace_ratio
 
-4. POST /api/analyze(text + context) → 后端做 Memory 检索、LLM 情绪分析、歌曲推荐
+4. 前端请求 GET /api/context?kpm=xx&backspace_ratio=xx → 获取完整环境上下文
 
-5. 后端控制 mpv 播放推荐歌曲
+5. POST /api/analyze(text + context) → 后端做 Memory 检索、LLM 情绪分析、歌曲推荐
 
-6. 前端轮询 GET /api/player/status → 同步播放状态
+6. 后端控制 mpv 播放推荐歌曲
 
-7. 用户反馈 POST /api/feedback → Memory 更新
+7. 前端轮询 GET /api/player/status → 同步播放状态
+
+8. 用户反馈 POST /api/feedback → Memory 更新
 
 ---
 

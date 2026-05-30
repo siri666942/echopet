@@ -3,11 +3,11 @@
 先把几个概念讲清楚：
 
 1. engine
-   - 可以理解成“数据库发动机”。
+   - 可以理解成"数据库发动机"。
    - 它知道数据库在哪里、怎么连接。
 
 2. Session
-   - 可以理解成“一次数据库操作窗口”。
+   - 可以理解成"一次数据库操作窗口"。
    - 查数据、插数据、提交事务，都通过 Session 做。
 
 3. Base
@@ -22,7 +22,7 @@
 
 from collections.abc import Generator
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from backend.config import settings
@@ -41,7 +41,7 @@ engine = create_engine(
     else {},
 )
 
-# SessionLocal 是“Session 工厂”。
+# SessionLocal 是"Session 工厂"。
 # 你调用 `SessionLocal()`，就会得到一个新的数据库会话。
 #
 # autoflush=False:
@@ -71,6 +71,40 @@ def init_db() -> None:
     from backend.models import tables  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
+    _ensure_sqlite_schema()
+
+
+def _ensure_sqlite_schema() -> None:
+    """SQLite 轻量补列。
+
+    `create_all` 只会建缺失的表，不会给已有表补新列。2.0 新增了很多 Song 字段，
+    所以这里对 SQLite 做保守 ALTER TABLE：只加缺失列，不删数据、不改旧列。
+    """
+
+    if not settings.database_url.startswith("sqlite"):
+        return
+
+    inspector = inspect(engine)
+    if "songs" not in inspector.get_table_names():
+        return
+
+    existing = {column["name"] for column in inspector.get_columns("songs")}
+    song_columns = {
+        "description": "TEXT DEFAULT ''",
+        "audio_features": "TEXT DEFAULT '{}'",
+        "semantic_features": "TEXT DEFAULT '{}'",
+        "embedding": "TEXT DEFAULT '[]'",
+        "play_count": "INTEGER DEFAULT 0",
+        "avg_completion_rate": "FLOAT DEFAULT 0.0",
+        "skip_count": "INTEGER DEFAULT 0",
+        "created_at": "DATETIME",
+        "updated_at": "DATETIME",
+    }
+
+    with engine.begin() as connection:
+        for name, ddl in song_columns.items():
+            if name not in existing:
+                connection.execute(text(f"ALTER TABLE songs ADD COLUMN {name} {ddl}"))
 
 
 def get_db() -> Generator[Session, None, None]:

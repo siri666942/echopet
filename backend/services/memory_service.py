@@ -1,16 +1,15 @@
 """记忆服务。
 
-Memory 是 EchoPet 的“长期记忆雏形”。
+Memory 是 EchoPet 的"长期记忆雏形"。
 
 它记录：
     - 用户当时几点
     - 正在用什么软件
     - 情绪是什么
     - 推荐了哪首歌
-    - 用户后续喜不喜欢
 
-推荐器会利用这些记录：
-    “如果用户以前在相似场景喜欢过某首歌，下次优先推荐它。”
+当前版本已经删掉用户反馈模块。
+Memory 现在只保留“推荐发生过”的历史记录，方便调试和后续扩展。
 """
 
 from datetime import datetime
@@ -26,7 +25,6 @@ def save_memory(
     context: ContextModel,
     emotion: EmotionResult,
     song_id: str,
-    feedback: str | None = None,
 ) -> Memory:
     """保存一次推荐记忆。
 
@@ -45,9 +43,6 @@ def save_memory(
 
         song_id:
             这次推荐的歌曲 ID。
-
-        feedback:
-            用户反馈。刚推荐时通常还没有反馈，所以默认 None。
     """
 
     entry = Memory(
@@ -60,7 +55,6 @@ def save_memory(
         energy=emotion.energy,
         need=emotion.need,
         song_id=song_id,
-        feedback=feedback,
     )
 
     # add: 把对象加入当前数据库会话。
@@ -70,54 +64,6 @@ def save_memory(
     db.commit()
 
     # refresh: 让 entry 拿到数据库生成的字段，比如自增 id。
-    db.refresh(entry)
-    return entry
-
-
-def apply_feedback(db: Session, song_id: str, feedback: str) -> Memory:
-    """把用户反馈写入记忆。
-
-    参数：
-        song_id:
-            用户反馈的歌曲。
-
-        feedback:
-            positive / negative / too_quiet / too_sad / more_energy。
-
-    逻辑：
-        1. 找最近一次推荐过这首歌的 Memory。
-        2. 如果找到了，就更新它的 feedback。
-        3. 如果没找到，就创建一条简化 Memory，至少把反馈记下来。
-    """
-
-    entry = (
-        db.query(Memory)
-        .filter(Memory.song_id == song_id)
-        .order_by(Memory.timestamp.desc())
-        .first()
-    )
-
-    if entry is None:
-        # 兜底逻辑：
-        # 正常流程是 analyze 先保存 memory，feedback 后更新它。
-        # 但如果前端直接调 feedback，也不要报错到无法记录。
-        entry = Memory(
-            timestamp=datetime.now(),
-            hour=datetime.now().hour,
-            active_app="Unknown",
-            kpm=0,
-            backspace_ratio=0.0,
-            emotion="calm",
-            energy=0.5,
-            need="companionship",
-            song_id=song_id,
-            feedback=feedback,
-        )
-        db.add(entry)
-    else:
-        entry.feedback = feedback
-
-    db.commit()
     db.refresh(entry)
     return entry
 
@@ -177,5 +123,4 @@ def memory_to_response(entry: Memory) -> MemoryEntry:
             need=entry.need,
         ),
         song_id=entry.song_id,
-        feedback=entry.feedback,
     )

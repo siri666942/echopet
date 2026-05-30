@@ -1,6 +1,6 @@
 """EchoPet 后端总入口。
 
-你可以把这个文件理解成“后端服务的总开关”。
+你可以把这个文件理解成"后端服务的总开关"。
 
 它做 4 件事：
 
@@ -10,7 +10,7 @@
 2. 在服务启动时准备运行环境
    - 建 SQLite 表。
    - 扫描本地曲库。
-   - 如果曲库为空，插入几条样例歌曲，保证前端演示不会因为“没歌”直接断掉。
+   - 如果曲库为空，插入几条样例歌曲，保证前端演示不会因为"没歌"直接断掉。
 
 3. 配置 CORS
    - 前端 DyberPet 和后端不是同一个进程。
@@ -27,10 +27,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# 这些 import 是“路由模块”。
+# 这些 import 是"路由模块"。
 # 举例：`analyze.router` 里面定义了 `POST /api/analyze`。
 # main.py 自己不写具体业务逻辑，只负责把各个路由模块装配起来。
-from backend.api import analyze, context, feedback, memory, music, player, transcribe
+from backend.api import analyze, context, memory, music, player, transcribe
 from backend.config import settings
 from backend.models.database import SessionLocal, init_db
 from backend.services.music_service import initialize_library
@@ -92,7 +92,6 @@ app.add_middleware(
 # 这些 router 自己已经带了 prefix="/api"。
 app.include_router(transcribe.router)  # POST /api/transcribe
 app.include_router(analyze.router)  # POST /api/analyze
-app.include_router(feedback.router)  # POST /api/feedback
 app.include_router(context.router)  # GET /api/context
 app.include_router(memory.router)  # GET /api/memory
 app.include_router(player.router)  # GET /api/player/status

@@ -2,45 +2,40 @@
 
 这个文件负责回答一个问题：
 
-    “用户现在大概处在什么电脑环境里？”
+    "用户现在大概处在什么电脑环境里？"
 
-目前 MVP 返回：
-    - 当前小时
-    - 当前活跃应用
-    - kpm=0
-    - backspace_ratio=0.0
-
-kpm/backspace_ratio 以后可以由前端采集后传给 `/api/analyze`，
-这样后端就不需要做全局键盘监听，权限问题更少。
+字段来源：
+    - hour: 后端获取（系统时间）
+    - active_app: 后端获取（Windows 前台窗口）
+    - kpm: 前端采集后传入（键盘监听在前端做，避免权限问题）
+    - backspace_ratio: 前端采集后传入
 """
 
 from datetime import datetime
 
 
-def get_current_context() -> dict:
+def get_current_context(kpm: int = 0, backspace_ratio: float = 0.0) -> dict:
     """采集当前上下文。
 
-    返回字典是为了让 API 层再用 ContextModel 做一次校验。
-
-    字段解释：
-        hour:
-            当前小时。比如晚上 23 点，可能说明用户比较累。
-
-        active_app:
-            当前正在使用的软件。比如 VSCode/Cursor 说明可能在写代码。
-
+    参数：
         kpm:
-            keys per minute，每分钟按键数。MVP 先返回 0。
+            keys per minute，每分钟按键数。
+            由前端采集后通过 query 参数传入。
+            前端没传时默认 0。
 
         backspace_ratio:
-            退格比例。高退格可能说明用户在反复修改、卡住。MVP 先返回 0。
+            退格键比例，0 到 1。
+            由前端采集后通过 query 参数传入。
+            前端没传时默认 0.0。
+
+    返回字典，API 层再用 ContextModel 做一次校验。
     """
 
     return {
         "hour": datetime.now().hour,
         "active_app": get_active_app(),
-        "kpm": 0,
-        "backspace_ratio": 0.0,
+        "kpm": kpm,
+        "backspace_ratio": backspace_ratio,
     }
 
 

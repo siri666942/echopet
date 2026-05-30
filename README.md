@@ -1,77 +1,79 @@
 # EchoPet
 
-EchoPet 是一个本地桌面情绪音乐 Agent。它接收用户输入，读取轻量桌面上下文，分析用户当前状态，从本地曲库推荐音乐，并通过 `mpv` 控制播放。
+EchoPet 是一个本地桌面情绪音乐 Agent。当前后端已经升级到架构 2.0：用户文本和上下文会先被翻译成“音乐检索语言”，再用真实 embedding 从本地曲库召回歌曲，生成播放队列，并通过播放完成率/跳过行为形成隐式反馈和长期用户画像。
 
-当前项目优先完成后端 MVP：
+## 当前能力
 
 - FastAPI HTTP 接口服务
-- SQLite 本地记忆和曲库元数据
-- 本地曲库扫描
-- 可选 OpenAI 情绪分析；没有 Key 时使用规则兜底
-- 可选 faster-whisper 语音转写；不可用时不影响服务启动
-- 可选 mpv 播放控制；不可用时仍返回可观察的播放器状态
+- SQLite 本地曲库、播放会话、记忆和用户画像
+- 本地音乐扫描，自动提取音频特征
+- 用歌曲描述生成真实 embedding，不使用假 embedding
+- `/api/analyze` 返回 `session_id`、`retrieval_query`、`playlist`
+- `/api/player/event` 接收播放完成率和跳过事件，更新歌曲统计
+- 可选 mpv 播放控制；播放失败不会拖垮推荐接口
 
 ## 项目结构
 
 ```text
 echopet/
 ├── backend/
-│   ├── main.py              # FastAPI 应用入口
-│   ├── config.py            # 环境变量和默认配置
-│   ├── requirements.txt     # 后端 Python 依赖
-│   ├── api/                 # HTTP 路由
-│   ├── models/              # SQLAlchemy 表和 Pydantic 模型
-│   ├── services/            # 业务逻辑
-│   ├── tests/               # Pytest 测试
-│   ├── db/                  # 运行时 SQLite 数据库，不提交 git
-│   └── music/               # 本地音乐文件目录
-├── api_docs.md              # API 接口文档
-├── backend_guide.md         # 后端设计指南
-├── backend_dev_guide.md     # 后端开发说明
-├── product_design.md        # 产品设计
-└── techneque_design.md      # 技术架构文档
+│   ├── main.py
+│   ├── config.py
+│   ├── requirements.txt
+│   ├── api/
+│   ├── models/
+│   ├── services/
+│   ├── tests/
+│   ├── db/
+│   └── music/
+├── api_docs.md
+├── backend_dev_guide.md
+├── product_design.md
+└── techneque_design.md
 ```
 
 ## 环境要求
 
 - Python 3.11+
-- 可选：安装 `mpv`，并确保命令行里能访问
-- 可选：安装 FFmpeg，用于真实音频转写流程
-- 可选：配置 `OPENAI_API_KEY`，用于 LLM 情绪分析
+- 真实 embedding API：必须配置 `OPENAI_API_KEY`
+- 可选：`OPENAI_BASE_URL`，用于 StepFun、DeepSeek 等 OpenAI-compatible 服务
+- 可选：安装 `mpv`
+- 必须：安装 Essentia / Essentia TensorFlow 运行环境
+- 可选：安装 FFmpeg，供音频解码链路使用
 
-后端即使没有 OpenAI、faster-whisper 或 mpv，也会继续运行。这样前端可以先联调接口，不会被外部依赖卡住。
+注意：推荐主链路不会生成假 embedding。没有 embedding 配置时，服务能启动，但 `/api/analyze` 会返回明确错误，提示需要配置真实 embedding API。
 
-## 后端启动
-
-在项目根目录执行：
+## 安装和启动
 
 ```powershell
 python -m venv backend/.venv
 backend/.venv/Scripts/pip install -r backend/requirements.txt
-```
-
-启动 API 服务：
-
-```powershell
 backend/.venv/Scripts/python -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 打开：
 
-- 服务根路径：`http://127.0.0.1:8000/`
-- Swagger 接口文档：`http://127.0.0.1:8000/docs`
+- `http://127.0.0.1:8000/`
+- `http://127.0.0.1:8000/docs`
 
 ## 环境变量
 
-如果需要覆盖默认配置，在项目根目录创建 `.env`：
-
 ```env
 OPENAI_API_KEY=
+OPENAI_BASE_URL=
 OPENAI_MODEL=gpt-4o-mini
+EMBEDDING_MODEL=text-embedding-3-small
 
 WHISPER_MODEL=base
 WHISPER_DEVICE=cpu
 WHISPER_COMPUTE_TYPE=int8
+
+ESSENTIA_GENRE_MODEL_PATH=
+ESSENTIA_MOOD_MODEL_PATH=
+ESSENTIA_DANCEABILITY_MODEL_PATH=
+ESSENTIA_AROUSAL_VALENCE_MODEL_PATH=
+ESSENTIA_VOICE_INSTRUMENTAL_MODEL_PATH=
+ESSENTIA_ACOUSTIC_ELECTRONIC_MODEL_PATH=
 
 ENABLE_MPV=true
 MPV_BINARY=mpv
@@ -82,90 +84,46 @@ HOST=127.0.0.1
 PORT=8000
 ```
 
-注意：
-
-- 不要提交 `.env`，它已经被 `.gitignore` 忽略。
-- `backend/db/*.db` 是运行时数据库，不提交 git。
-- 本地音乐放到 `backend/music/`，支持 `.mp3`、`.wav`、`.flac`。
-- 如果曲库为空，后端会自动插入 3 条样例歌曲元数据，保证演示接口能跑通。
-
 ## 接口概览
-
-基础地址：`http://127.0.0.1:8000`
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | `POST` | `/api/transcribe` | Base64 音频转文本 |
-| `POST` | `/api/analyze` | 文本 + 上下文 -> 情绪、推荐、播放 |
-| `POST` | `/api/feedback` | 记录用户对歌曲的反馈 |
+| `POST` | `/api/analyze` | 文本 + 上下文 -> retrieval_query + playlist + 播放 |
+| `POST` | `/api/player/event` | 上报 finished/skipped/stopped 等播放事件 |
 | `GET` | `/api/context` | 获取当前桌面上下文 |
-| `GET` | `/api/memory` | 分页查询历史记忆 |
+| `GET` | `/api/memory` | 分页查询兼容记忆 |
 | `GET` | `/api/player/status` | 获取当前 mpv 播放状态 |
-| `GET` | `/api/music/random` | 从本地曲库随机取一首歌 |
+| `GET` | `/api/music/random` | 调试用：随机取一首歌 |
 
-完整请求和响应格式见 `api_docs.md`。
+## 曲库流程
 
-## 快速验证
+把 `.mp3`、`.wav` 或 `.flac` 放到 `backend/music/` 后，服务启动时会：
 
-启动 API 后，可以用 PowerShell 试一下：
+1. 扫描新歌
+2. 用 Essentia / Essentia TensorFlow 模型提取基础音频特征和高级语义特征
+3. 生成只描述歌曲本身的中文 description
+4. 调用真实 embedding API
+5. 写入 songs 表
 
-```powershell
-Invoke-RestMethod http://127.0.0.1:8000/api/context
-Invoke-RestMethod http://127.0.0.1:8000/api/music/random
-```
-
-测试文本分析：
-
-```powershell
-$body = @{
-  text = "我 debug 一天了，有点烦"
-  input_source = "text"
-  context = @{
-    hour = 23
-    active_app = "VSCode"
-    kpm = 120
-    backspace_ratio = 0.2
-  }
-} | ConvertTo-Json -Depth 4
-
-Invoke-RestMethod `
-  -Uri http://127.0.0.1:8000/api/analyze `
-  -Method Post `
-  -ContentType "application/json" `
-  -Body $body
-```
-
-## 测试
-
-在项目根目录执行：
-
-```powershell
-python -m pytest backend/tests
-```
-
-当前测试覆盖：
-
-- `/api/context` 返回合法上下文
-- `/api/music/random` 在样例曲库下能返回歌曲
-- `/api/analyze` 在无 OpenAI、无 mpv 环境下仍能返回推荐并写入记忆
-- `/api/feedback` 成功、未知歌曲、非法反馈
-- `/api/memory` 分页查询
-- `/api/player/status` 默认播放器状态
-- `/api/transcribe` 请求校验
+旧歌曲缺少 `audio_features`、`description`、`embedding` 时，也会在启动时自动补全。Essentia 分析失败的新歌不会写入 songs 表，会记录为入库失败；如果没有配置 embedding API，则不会写假向量。
 
 ## 前端联调流程
-
-DyberPet 前端建议按这个链路接入：
 
 ```text
 用户输入文本或录音
   -> 如果是录音，先 POST /api/transcribe
   -> GET /api/context
   -> POST /api/analyze
-  -> 前端根据 current_state 切桌宠状态
-  -> 前端显示 bubble_text
+  -> 前端使用 current_state / bubble_text / playlist / session_id
   -> 前端轮询 GET /api/player/status
-  -> 用户反馈时 POST /api/feedback
+  -> 播放结束或跳过时 POST /api/player/event
 ```
 
-后端负责记忆、推荐、情绪分析、语音转写和播放控制。前端负责录音、桌宠动画、气泡展示和反馈按钮。
+## 测试
+
+```powershell
+python -m pytest backend/tests
+```
+
+当前测试覆盖 embedding 相似度、歌曲描述、playlist、画像反思、embedding 推荐器、`/api/analyze`、`/api/player/event`、曲库随机接口、上下文接口、记忆分页和语音转写校验。

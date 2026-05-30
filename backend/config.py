@@ -2,8 +2,8 @@
 
 这个文件解决一个问题：
 
-    “代码里需要很多配置，比如数据库在哪、音乐目录在哪、OpenAI Key 是什么。
-     这些值不要散落在各个文件里，要集中管理。”
+    "代码里需要很多配置，比如数据库在哪、音乐目录在哪、OpenAI Key 是什么。
+     这些值不要散落在各个文件里，要集中管理。"
 
 配置来源有两种：
 
@@ -25,7 +25,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 # `BACKEND_DIR` 是 backend 目录的绝对路径。
-# 后面拼数据库路径、音乐路径，都基于它来算，避免“从不同目录启动命令时路径错乱”。
+# 后面拼数据库路径、音乐路径，都基于它来算，避免"从不同目录启动命令时路径错乱"。
 BACKEND_DIR = Path(__file__).resolve().parent
 
 
@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     例如：
         `openai_api_key` 会读取 `.env` 里的 `OPENAI_API_KEY`。
 
-    你可以把它理解成一个“配置表”。
+    你可以把它理解成一个"配置表"。
     业务代码不要自己到处读 `.env`，统一从 `settings` 取。
     """
 
@@ -54,10 +54,22 @@ class Settings(BaseSettings):
     # 用户可以把 mp3/wav/flac 放到这里，启动时会扫描入库。
     music_dir: Path = BACKEND_DIR / "music"
 
-    # OpenAI 配置。
+    # OpenAI 兼容 API 配置。
     # 如果没有 key，emotion_service 会自动使用关键词规则兜底。
+    # base_url 用于接入 OpenAI 兼容的第三方服务（如 StepFun、DeepSeek 等）。
     openai_api_key: str | None = None
+    openai_base_url: str | None = None
     openai_model: str = "gpt-4o-mini"
+    embedding_model: str = "text-embedding-3-small"
+
+    # Essentia TensorFlow 语义模型路径。
+    # 不配置这些模型时，新歌不会入库；因为音频特征层要求只使用真实 Essentia 分析。
+    essentia_genre_model_path: str | None = None
+    essentia_mood_model_path: str | None = None
+    essentia_danceability_model_path: str | None = None
+    essentia_arousal_valence_model_path: str | None = None
+    essentia_voice_instrumental_model_path: str | None = None
+    essentia_acoustic_electronic_model_path: str | None = None
 
     # faster-whisper 配置。
     # 如果模型不可用，whisper_service 会返回空 transcript，不让服务崩。
@@ -118,7 +130,7 @@ def _sqlite_path(database_url: str) -> Path | None:
         - 如果是 SQLite，返回数据库文件路径。
         - 如果不是 SQLite，返回 None。
 
-    这个函数目前只服务于“自动创建数据库目录”。
+    这个函数目前只服务于"自动创建数据库目录"。
     """
 
     prefix = "sqlite:///"
