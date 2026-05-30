@@ -420,6 +420,8 @@ class PetWidget(QWidget):
         self.player_status_poller = None
         self.current_track = {}
         self.current_agent_state = "idle"
+        self.current_player_status = "idle"
+        self.current_pet_status_text = "待命中"
         self.last_user_text = ""
 
         # 鼠标拖拽初始属性
@@ -909,9 +911,7 @@ class PetWidget(QWidget):
         setFont(self.nameLabel, 14, QFont.DemiBold)
         #self.nameLabel.setFixedWidth(75)
 
-        daysText = self.tr(" (Fed for ") + str(settings.pet_data.days) +\
-                   self.tr(" days)")
-        self.daysLabel = CaptionLabel(daysText, self)
+        self.daysLabel = CaptionLabel(" EchoPet Demo", self)
         setFont(self.daysLabel, 14, QFont.Normal)
 
         hboxTitle.addStretch(1)
@@ -1019,32 +1019,82 @@ class PetWidget(QWidget):
         #statusWidget.setContentsMargins(0,0,0,0)
         self.statusWidget.setFixedSize(250, 70)
         
+        infoWidget = QWidget()
+        infoLayout = QVBoxLayout(infoWidget)
+        infoLayout.setContentsMargins(12, 6, 12, 6)
+        infoLayout.setSpacing(6)
+        self.pet_status_value = CaptionLabel("待命中", self)
+        self.pet_status_value.setWordWrap(True)
+        self.recommendation_value = CaptionLabel("暂无", self)
+        self.recommendation_value.setWordWrap(True)
+        self.player_status_value = CaptionLabel("未播放", self)
+        self.player_status_value.setWordWrap(True)
+        for title, value_label in (
+            (self.tr("Pet Status"), self.pet_status_value),
+            (self.tr("Current Recommendation"), self.recommendation_value),
+            (self.tr("Playback Status"), self.player_status_value),
+        ):
+            row = QWidget()
+            rowLayout = QHBoxLayout(row)
+            rowLayout.setContentsMargins(0, 0, 0, 0)
+            rowLayout.setSpacing(8)
+            keyLabel = CaptionLabel(title, self)
+            setFont(keyLabel, 12, QFont.DemiBold)
+            value_label.setMinimumWidth(150)
+            rowLayout.addWidget(keyLabel, 0)
+            rowLayout.addWidget(value_label, 1)
+            infoLayout.addWidget(row)
+        infoWidget.setFixedSize(270, 92)
+
         self.StatMenu = RoundMenu(parent=self)
         self.StatMenu.addWidget(self.statusTitle, selectable=False)
         self.StatMenu.addSeparator()
-        #self.StatMenu.addWidget(self.statLabel, selectable=False)
-        self.StatMenu.addWidget(lvlWidget, selectable=False)
-        self.StatMenu.addWidget(self.statusWidget, selectable=False)
-        #self.StatMenu.addWidget(fvbar, selectable=False)
+        self.StatMenu.addWidget(infoWidget, selectable=False)
         self.StatMenu.addSeparator()
 
-        #self.StatMenu.addMenu(self.menu)
-        self.StatMenu.addActions([
-            #Action(FIF.MENU, self.tr('More Options'), triggered=self._show_right_menu),
+        self.demo_menu = RoundMenu(self.tr("Demo States"))
+        self.demo_menu.setIcon(QIcon(os.path.join(basedir, 'res/icons/focus.svg')))
+        demo_states = [
+            ("Idle", "idle"),
+            ("Focus", "focus"),
+            ("Tired", "tired"),
+            ("Frustrated", "frustrated"),
+            ("Sad", "sad"),
+        ]
+        for label, state_name in demo_states:
+            self.demo_menu.addAction(
+                Action(
+                    QIcon(os.path.join(basedir, 'res/icons/Dialogue_icon.png')),
+                    self.tr(label),
+                    triggered=lambda _checked=False, s=state_name: self.apply_mock_state(s),
+                )
+            )
+
+        self.debug_menu = RoundMenu(self.tr("Debug Tools"))
+        self.debug_menu.setIcon(QIcon(os.path.join(basedir, 'res/icons/system/more.svg')))
+        self.debug_menu.addActions([
             Action(QIcon(os.path.join(basedir,'res/icons/dashboard.svg')), self.tr('Dashboard'), triggered=self._show_dashboard),
             Action(QIcon(os.path.join(basedir,'res/icons/SystemPanel.png')), self.tr('System'), triggered=self._show_controlPanel),
-            Action(QIcon(os.path.join(basedir,'res/icons/Dialogue_icon.png')), self.tr('Open EchoPet Input'), triggered=self.open_input_panel),
         ])
-        self.StatMenu.addSeparator()
+        self.debug_menu.addSeparator()
+        self.debug_menu.addMenu(self.demo_menu)
+        if self.act_menu.actions():
+            self.debug_menu.addMenu(self.act_menu)
+        if self.companion_menu.actions():
+            self.debug_menu.addMenu(self.companion_menu)
+        if self.change_menu.actions():
+            self.debug_menu.addMenu(self.change_menu)
 
-        self.StatMenu.addMenu(self.act_menu)
-        self.StatMenu.addMenu(self.companion_menu)
-        self.StatMenu.addMenu(self.change_menu)
+        self.StatMenu.addActions([
+            Action(QIcon(os.path.join(basedir,'res/icons/Dialogue_icon.png')), self.tr('Open EchoPet'), triggered=self.open_input_panel),
+        ])
+        self.StatMenu.addMenu(self.debug_menu)
         self.StatMenu.addSeparator()
         
         self.StatMenu.addActions([
             Action(FIF.POWER_BUTTON, self.tr('Exit'), triggered=self.quit),
         ])
+        self._refresh_echopet_status_summary()
 
 
     # def _update_statusTitle(self, hp_tier):
@@ -1059,6 +1109,40 @@ class PetWidget(QWidget):
         """
         # 光标位置弹出菜单
         self.StatMenu.popup(QCursor.pos()-QPoint(0, self.StatMenu.height()-20))
+
+    def _friendly_pet_state_label(self, state_name):
+        mapping = {
+            "idle": "待命中",
+            "focus": "专注陪伴中",
+            "tired": "疲惫安抚中",
+            "frustrated": "正在帮你缓一缓",
+            "sad": "正在安静陪伴",
+        }
+        return mapping.get(state_name, "待命中")
+
+    def _friendly_player_status_label(self, status_name):
+        mapping = {
+            "idle": "未播放",
+            "loading": "正在准备歌曲",
+            "playing": "正在播放",
+            "paused": "已暂停",
+            "error": "播放异常",
+        }
+        return mapping.get(status_name, status_name or "未播放")
+
+    def _refresh_echopet_status_summary(self):
+        if not hasattr(self, "pet_status_value"):
+            return
+        recommendation = self.current_track or {}
+        title = recommendation.get("title", "")
+        artist = recommendation.get("artist", "")
+        if title and artist:
+            recommendation_text = f"{title} - {artist}"
+        else:
+            recommendation_text = title or "暂无"
+        self.pet_status_value.setText(self.current_pet_status_text or self._friendly_pet_state_label(self.current_agent_state))
+        self.recommendation_value.setText(recommendation_text)
+        self.player_status_value.setText(self._friendly_player_status_label(self.current_player_status))
 
     def _add_pet(self, pet_name: str):
         pet_acc = {'name':'pet', 'pet_name':pet_name}
@@ -1360,6 +1444,9 @@ class PetWidget(QWidget):
             return
 
         self.last_user_text = clean_text
+        self.current_pet_status_text = "正在帮你找歌"
+        self.current_player_status = "loading"
+        self._refresh_echopet_status_summary()
         if self.input_panel:
             self.input_panel.set_busy(True, "提示: 正在分析中...")
         threading.Thread(
@@ -1385,10 +1472,14 @@ class PetWidget(QWidget):
             self.input_panel.set_busy(False)
 
     def _handle_recording_started(self):
+        self.current_pet_status_text = "正在听你说话"
+        self._refresh_echopet_status_summary()
         if self.input_panel:
             self.input_panel.set_recording(True)
 
     def _handle_recording_finished(self, audio_bytes, audio_format):
+        self.current_pet_status_text = "正在转写语音"
+        self._refresh_echopet_status_summary()
         if self.input_panel:
             self.input_panel.set_recording(False)
             self.input_panel.set_busy(True, "提示: 正在转写录音...")
@@ -1399,6 +1490,8 @@ class PetWidget(QWidget):
         ).start()
 
     def _handle_recording_failed(self, message):
+        self.current_pet_status_text = "录音失败"
+        self._refresh_echopet_status_summary()
         if self.input_panel:
             self.input_panel.set_recording(False)
             self.input_panel.set_busy(False, f"提示: {message}")
@@ -1414,6 +1507,8 @@ class PetWidget(QWidget):
             self.transcript_failed.emit(str(exc))
 
     def _handle_transcript_ready(self, transcript):
+        self.current_pet_status_text = "文字已准备好"
+        self._refresh_echopet_status_summary()
         if self.input_panel:
             self.input_panel.set_busy(False)
             self.input_panel.set_transcript(transcript)
@@ -1428,6 +1523,9 @@ class PetWidget(QWidget):
         )
 
     def _handle_transcript_failed(self, message):
+        self.current_pet_status_text = "转写失败"
+        self.current_player_status = "idle"
+        self._refresh_echopet_status_summary()
         if self.input_panel:
             self.input_panel.set_busy(False, f"提示: {message}")
             self.input_panel.set_recording(False)
@@ -1444,6 +1542,12 @@ class PetWidget(QWidget):
         mapped_result = map_agent_result(result)
         self.current_agent_state = mapped_result["pet_state"]
         self.current_track = mapped_result.get("recommendation") or {}
+        self.current_player_status = mapped_result.get("player_status", {}).get("status", "idle")
+        if self.current_player_status == "loading":
+            self.current_pet_status_text = "正在帮你准备歌曲"
+        else:
+            self.current_pet_status_text = self._friendly_pet_state_label(self.current_agent_state)
+        self._refresh_echopet_status_summary()
 
         self.apply_pet_state(mapped_result["pet_state"])
         self.register_bubbleText(
@@ -1483,6 +1587,18 @@ class PetWidget(QWidget):
             "title": status_payload.get("title", ""),
             "artist": status_payload.get("artist", ""),
         }
+        self.current_player_status = status_payload.get("status", "idle")
+        if self.current_player_status == "playing":
+            self.current_pet_status_text = "正在陪你听歌"
+        elif self.current_player_status == "loading":
+            self.current_pet_status_text = "正在帮你准备歌曲"
+        elif self.current_player_status == "paused":
+            self.current_pet_status_text = "歌曲暂停中"
+        elif self.current_player_status == "error":
+            self.current_pet_status_text = "播放出了点问题"
+        elif self.current_player_status == "idle":
+            self.current_pet_status_text = self._friendly_pet_state_label(self.current_agent_state)
+        self._refresh_echopet_status_summary()
 
         if self.input_panel and self.input_panel.isVisible():
             title = status_payload.get("title", "")
@@ -2259,10 +2375,8 @@ class PetWidget(QWidget):
     def _mightEventTrigger(self):
         # Update date
         settings.pet_data.update_date()
-        # Update companion days
-        daysText = self.tr(" (Fed for ") + str(settings.pet_data.days) +\
-                   self.tr(" days)")
-        self.daysLabel.setText(daysText)
+        if hasattr(self, "daysLabel"):
+            self.daysLabel.setText(" EchoPet Demo")
 
 
 

@@ -4,12 +4,12 @@
     "fixdragspeedx": 1.0,
     "fixdragspeedy": 1.0,
     "usertag_dict": {
-        "ChrisKitty": "",
-        "Kitty": ""
+        "Kitty": "",
+        "ChrisKitty": ""
     },
     "scale_dict": {
-        "ChrisKitty": 1.0,
-        "Kitty": 1.0
+        "Kitty": 1.0,
+        "ChrisKitty": 1.0
     },
     "minipet_scale": {},
     "volume": 0.5,

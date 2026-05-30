@@ -30,7 +30,7 @@ class InputPanel(QFrame):
         self.setWindowFlags(Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
         self.setAttribute(Qt.WA_TranslucentBackground, False)
         self.setObjectName("EchoPetInputPanel")
-        self.resize(360, 320)
+        self.resize(380, 340)
 
         root = QVBoxLayout(self)
         root.setContentsMargins(12, 12, 12, 12)
@@ -38,7 +38,7 @@ class InputPanel(QFrame):
 
         title = QLabel("EchoPet 输入面板")
         title.setStyleSheet("font-size: 16px; font-weight: 600;")
-        subtitle = QLabel("支持文本输入和本地录音转写。录音只会回填文本框，最终提交给后端的仍然是文字。")
+        subtitle = QLabel("输入一句话，或先录音转写到文本框，再让 EchoPet 根据当前状态推荐更合适的音乐。")
         subtitle.setWordWrap(True)
         subtitle.setStyleSheet("color: #666666;")
         root.addWidget(title)
@@ -61,9 +61,19 @@ class InputPanel(QFrame):
         button_row.addWidget(self.close_button)
         root.addLayout(button_row)
 
-        mock_title = QLabel("Demo 快速状态切换")
+        self.debug_toggle_button = QPushButton("显示开发调试")
+        self.debug_toggle_button.setCheckable(True)
+        self.debug_toggle_button.setChecked(False)
+        root.addWidget(self.debug_toggle_button, alignment=Qt.AlignLeft)
+
+        self.debug_widget = QWidget()
+        debug_layout = QVBoxLayout(self.debug_widget)
+        debug_layout.setContentsMargins(0, 0, 0, 0)
+        debug_layout.setSpacing(8)
+
+        mock_title = QLabel("开发调试：快速状态切换")
         mock_title.setStyleSheet("font-weight: 600;")
-        root.addWidget(mock_title)
+        debug_layout.addWidget(mock_title)
 
         mock_grid = QGridLayout()
         mock_states = [
@@ -77,9 +87,11 @@ class InputPanel(QFrame):
             button = QPushButton(label)
             button.clicked.connect(lambda _checked=False, s=state_name: self.mock_state_requested.emit(s))
             mock_grid.addWidget(button, index // 3, index % 3)
-        root.addLayout(mock_grid)
+        debug_layout.addLayout(mock_grid)
+        root.addWidget(self.debug_widget)
+        self.debug_widget.hide()
 
-        info_title = QLabel("当前结果")
+        info_title = QLabel("当前推荐")
         info_title.setStyleSheet("font-weight: 600;")
         root.addWidget(info_title)
 
@@ -87,7 +99,7 @@ class InputPanel(QFrame):
         self.track_label = QLabel("歌曲: 暂无")
         self.reply_label = QLabel("回复: 等你输入一句话")
         self.reply_label.setWordWrap(True)
-        self.status_label = QLabel("提示: 可直接用 mock 演示")
+        self.status_label = QLabel("提示: 输入一句话开始体验")
         self.status_label.setWordWrap(True)
         self.status_label.setStyleSheet("color: #666666;")
         root.addWidget(self.state_label)
@@ -111,6 +123,7 @@ class InputPanel(QFrame):
         self.like_button.clicked.connect(lambda: self._emit_feedback("positive"))
         self.dislike_button.clicked.connect(lambda: self._emit_feedback("negative"))
         self.energy_button.clicked.connect(lambda: self._emit_feedback("more_energy"))
+        self.debug_toggle_button.toggled.connect(self.set_debug_tools_visible)
 
     def _emit_submit(self) -> None:
         text = self.editor.toPlainText().strip()
@@ -131,6 +144,10 @@ class InputPanel(QFrame):
 
     def show_status(self, message: str) -> None:
         self.status_label.setText(message)
+
+    def set_debug_tools_visible(self, visible: bool) -> None:
+        self.debug_widget.setVisible(visible)
+        self.debug_toggle_button.setText("隐藏开发调试" if visible else "显示开发调试")
 
     def set_transcript(self, text: str) -> None:
         current = self.editor.toPlainText().strip()

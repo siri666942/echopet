@@ -1,8 +1,8 @@
 {
     "ChrisKitty": {
-        "HP": 180,
+        "HP": 176,
         "HP_tier": 3,
-        "FV": 0,
+        "FV": 4,
         "FV_lvl": 1,
         "fv_sys_ver": "v2",
         "items": {},
