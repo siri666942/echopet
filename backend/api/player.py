@@ -29,11 +29,9 @@ async def player_pause() -> PlayerStatusResponse:
 
 @router.post("/player/skip", response_model=PlayerStatusResponse)
 async def player_skip() -> PlayerStatusResponse:
-    song = playlist_service.get_next_song()
-    if song is None:
+    if not playlist_service.has_next_song():
         raise HTTPException(status_code=404, detail="no next song in playlist")
-    player_service.play(song.file_path, song.id, song.title, song.artist)
-    return PlayerStatusResponse(**player_service.get_status())
+    return PlayerStatusResponse(**player_service.skip_to_next())
 
 
 @router.post("/player/event", response_model=PlayerEventResponse)

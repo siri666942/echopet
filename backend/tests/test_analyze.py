@@ -70,6 +70,36 @@ def test_analyze_accepts_keyboard_events_and_persists_state(client, db_session, 
     assert context["kpm"] == 180
 
 
+def test_analyze_uses_productive_app_and_keyboard_context_for_focus(client, monkeypatch):
+    monkeypatch.setattr("backend.services.recommender.embed_text", lambda text: [1.0, 0.0, 0.0])
+
+    response = client.post(
+        "/api/analyze",
+        json={
+            "text": "来点适合现在的",
+            "input_source": "text",
+            "context": {
+                "hour": 14,
+                "active_app": "Cursor",
+                "kpm": 165,
+                "backspace_ratio": 0.04,
+            },
+            "keyboard_state": {
+                "focus": 0.78,
+                "stress": 0.24,
+                "fatigue": 0.2,
+                "stability": 0.82,
+                "typing_state": "focused_typing",
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["current_state"] == "focus"
+    assert payload["emotion"]["emotion"] == "focused"
+
+
 def _high_activity_unstable_events():
     events = []
     timestamp = 0.0

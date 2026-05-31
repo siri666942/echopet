@@ -1,17 +1,71 @@
 param(
     [switch]$InstallDeps,
+    [switch]$Background,
+    [switch]$NoReload,
     [int]$Port = 8000
 )
 
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
+$RuntimeDir = Join-Path $RepoRoot ".runtime"
 $VenvPath = Join-Path $RepoRoot "backend\.venv"
 $PythonPath = Join-Path $VenvPath "Scripts\python.exe"
+$BackendRequirements = Join-Path $RepoRoot "backend\requirements.txt"
+$BackendPidFile = Join-Path $RuntimeDir "backend.pid"
 $MpvPaths = @(
     "C:\Users\thyss\tools\mpv-dev",
     "C:\Users\thyss\tools\mpv"
 )
+
+function Write-Step([string]$Message) {
+    Write-Host "[EchoPet] $Message"
+}
+
+function Ensure-BackendVenv {
+    if (-not (Test-Path $PythonPath)) {
+        Write-Step "Creating backend venv..."
+        py -3.11 -m venv $VenvPath
+    }
+
+    $pipPath = Join-Path $VenvPath "Scripts\pip.exe"
+    if (-not (Test-Path $pipPath)) {
+        & $PythonPath -m ensurepip --upgrade
+    }
+}
+
+function Test-BackendDepsReady {
+    if (-not (Test-Path $PythonPath)) {
+        return $false
+    }
+
+    & $PythonPath -c "import fastapi, pydantic_settings, pytest, faster_whisper" *> $null
+    return ($LASTEXITCODE -eq 0)
+}
+
+function Install-BackendDeps {
+    Write-Step "Installing backend dependencies..."
+    & $PythonPath -m pip install -r $BackendRequirements
+}
+
+function Stop-OldBackend {
+    if (-not (Test-Path $BackendPidFile)) {
+        return
+    }
+
+    $pidText = (Get-Content $BackendPidFile -Raw).Trim()
+    if (-not $pidText) {
+        Remove-Item -LiteralPath $BackendPidFile -Force
+        return
+    }
+
+    $oldProcess = Get-Process -Id ([int]$pidText) -ErrorAction SilentlyContinue
+    if ($oldProcess) {
+        Write-Step "Stopping previous backend process pid=$pidText..."
+        Stop-Process -Id ([int]$pidText) -Force
+    }
+    Remove-Item -LiteralPath $BackendPidFile -Force
+}
 
 foreach ($path in $MpvPaths) {
     if ($path -and (Test-Path $path)) {
@@ -19,34 +73,32 @@ foreach ($path in $MpvPaths) {
     }
 }
 
-if (-not (Test-Path $PythonPath)) {
-    py -3.11 -m venv $VenvPath
-}
-
-$PipPath = Join-Path $VenvPath "Scripts\pip.exe"
-if (-not (Test-Path $PipPath)) {
-    & $PythonPath -m ensurepip --upgrade
-}
-
-if ($InstallDeps) {
-    & $PythonPath -m pip install `
-        fastapi==0.115.0 `
-        "uvicorn[standard]==0.30.6" `
-        sqlalchemy==2.0.35 `
-        pydantic==2.9.2 `
-        pydantic-settings==2.5.2 `
-        httpx==0.27.2 `
-        psutil==6.0.0 `
-        pywin32==306 `
-        openai==1.50.2 `
-        python-multipart==0.0.12 `
-        python-mpv==1.0.7 `
-        numpy==1.26.4
+New-Item -ItemType Directory -Path $RuntimeDir -Force | Out-Null
+Ensure-BackendVenv
+if ($InstallDeps -or -not (Test-BackendDepsReady)) {
+    Install-BackendDeps
 }
 
 Push-Location $RepoRoot
 try {
-    & $PythonPath -m uvicorn backend.main:app --reload --host 127.0.0.1 --port $Port
+    $arguments = @("-m", "uvicorn", "backend.main:app", "--host", "127.0.0.1", "--port", "$Port")
+    if (-not $NoReload -and -not $Background) {
+        $arguments += "--reload"
+    }
+
+    if ($Background) {
+        Stop-OldBackend
+        $process = Start-Process `
+            -FilePath $PythonPath `
+            -ArgumentList $arguments `
+            -WorkingDirectory $RepoRoot `
+            -PassThru
+        Set-Content -LiteralPath $BackendPidFile -Value $process.Id -Encoding ASCII
+        Write-Step "Backend started pid=$($process.Id) at http://127.0.0.1:$Port"
+    }
+    else {
+        & $PythonPath @arguments
+    }
 }
 finally {
     Pop-Location

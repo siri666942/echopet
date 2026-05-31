@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import socket
 import json
 from typing import Dict, Optional
-import socket
-from urllib import error, request
+from urllib import error, parse, request
 
 
 class AgentClientError(RuntimeError):
@@ -49,8 +49,17 @@ class AgentClient:
         except (error.URLError, json.JSONDecodeError) as exc:
             raise AgentClientError(str(exc)) from exc
 
-    def get_context(self, timeout: Optional[float] = None) -> Dict:
-        return self._request_json("GET", "/api/context", timeout=timeout)
+    def get_context(
+        self,
+        keyboard_events: Optional[Dict] = None,
+        timeout: Optional[float] = None,
+    ) -> Dict:
+        metrics = summarize_keyboard_events(keyboard_events)
+        query = parse.urlencode(metrics)
+        path = "/api/context"
+        if query:
+            path = f"{path}?{query}"
+        return self._request_json("GET", path, timeout=timeout)
 
     def analyze_text(
         self,
@@ -61,7 +70,7 @@ class AgentClient:
         timeout: Optional[float] = None,
     ) -> Dict:
         if context is None:
-            context = self.get_context(timeout=timeout)
+            context = self.get_context(keyboard_events=keyboard_events, timeout=timeout)
         payload = {
             "text": text,
             "input_source": input_source,
@@ -78,7 +87,7 @@ class AgentClient:
         keyboard_events: Optional[Dict] = None,
     ) -> Dict:
         try:
-            context = self.get_context()
+            context = self.get_context(keyboard_events=keyboard_events)
             result = self.analyze_text(
                 text,
                 input_source=input_source,
@@ -256,4 +265,33 @@ def normalize_player_status_payload(payload: Dict | None) -> Dict:
         "track_id": payload.get("track_id", ""),
         "title": payload.get("title", ""),
         "artist": payload.get("artist", ""),
+    }
+
+
+def summarize_keyboard_events(payload: Dict | None) -> Dict:
+    if not payload:
+        return {}
+
+    raw_events = payload.get("events") or []
+    keydowns = [
+        event
+        for event in raw_events
+        if isinstance(event, dict) and event.get("type") == "keydown"
+    ]
+    key_count = len(keydowns)
+    if key_count <= 0:
+        return {"kpm": 0, "backspace_ratio": 0.0}
+
+    window_seconds = payload.get("window_seconds") or 60
+    try:
+        window_seconds = max(float(window_seconds), 1.0)
+    except (TypeError, ValueError):
+        window_seconds = 60.0
+
+    backspace_count = sum(
+        1 for event in keydowns if str(event.get("key") or "").strip().lower() == "backspace"
+    )
+    return {
+        "kpm": round(key_count / window_seconds * 60),
+        "backspace_ratio": round(backspace_count / key_count, 4),
     }

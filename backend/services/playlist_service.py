@@ -17,6 +17,16 @@ def get_current_playlist() -> list[Song]:
     return list(_playlist)
 
 
+def get_current_song() -> Song | None:
+    if not _playlist or _cursor < 0 or _cursor >= len(_playlist):
+        return None
+    return _playlist[_cursor]
+
+
+def has_next_song() -> bool:
+    return bool(_playlist) and _cursor + 1 < len(_playlist)
+
+
 def get_next_song() -> Song | None:
     global _cursor
     _cursor += 1

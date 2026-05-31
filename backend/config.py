@@ -95,6 +95,11 @@ class Settings(BaseSettings):
     mpv_binary: str = "mpv"
     enable_mpv: bool = True
 
+    # ActivityWatch 环境感知配置。
+    # 默认关闭；开启后优先从本地 ActivityWatch server 读取前台窗口信息。
+    enable_activitywatch: bool = False
+    activitywatch_base_url: str = "http://127.0.0.1:5600"
+
     # 告诉 pydantic-settings：去项目根目录读取 `.env`。
     # extra="ignore" 表示 `.env` 里有暂时用不到的字段也不要报错。
     model_config = SettingsConfigDict(
