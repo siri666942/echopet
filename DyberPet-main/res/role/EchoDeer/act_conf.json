@@ -1,28 +1,28 @@
 {
   "default": {
     "images": "stand",
-    "act_num": 5,
-    "frame_refresh": 0.32
+    "act_num": 3,
+    "frame_refresh": 0.38
   },
   "up": {
     "images": "stand",
-    "act_num": 5,
-    "frame_refresh": 0.32
+    "act_num": 3,
+    "frame_refresh": 0.38
   },
   "down": {
     "images": "stand",
-    "act_num": 5,
-    "frame_refresh": 0.32
+    "act_num": 3,
+    "frame_refresh": 0.38
   },
   "left": {
     "images": "stand",
-    "act_num": 5,
-    "frame_refresh": 0.32
+    "act_num": 3,
+    "frame_refresh": 0.38
   },
   "right": {
     "images": "stand",
-    "act_num": 5,
-    "frame_refresh": 0.32
+    "act_num": 3,
+    "frame_refresh": 0.38
   },
   "drag": {
     "images": "drag",

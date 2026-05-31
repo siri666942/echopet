@@ -11,7 +11,7 @@ ROOT = Path(r"c:\Users\thyss\Documents\GitHub\echopet")
 SHEET_PATH = ROOT / "THEDEER.png"
 ROLE_ROOT = ROOT / "DyberPet-main" / "res" / "role" / "EchoDeer"
 ACTION_DIR = ROLE_ROOT / "action"
-CANVAS_WIDTH = 144
+CANVAS_WIDTH = 148
 CANVAS_HEIGHT = 128
 SHEET_FRAME_COUNT = 5
 BACKGROUND_THRESHOLD = 36
@@ -19,6 +19,8 @@ BACKGROUND_THRESHOLD = 36
 
 def ensure_dirs() -> None:
     ACTION_DIR.mkdir(parents=True, exist_ok=True)
+    for path in ACTION_DIR.glob("stand_*.png"):
+        path.unlink()
 
 
 def color_distance(a: QColor, b: QColor) -> int:
@@ -100,13 +102,18 @@ def fit_to_canvas(
     image: QImage,
     canvas_width: int = CANVAS_WIDTH,
     canvas_height: int = CANVAS_HEIGHT,
-    scale: float = 0.98,
+    scale: float = 1.0,
+    reference_width: int | None = None,
+    reference_height: int | None = None,
 ) -> QImage:
     bounds = bounding_box(image)
     cropped = image.copy(bounds)
-    target_w = max(1, int(canvas_width * scale))
-    target_h = max(1, int(canvas_height * scale))
-    scaled = cropped.scaled(target_w, target_h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+    source_width = max(1, reference_width or cropped.width())
+    source_height = max(1, reference_height or cropped.height())
+    ratio = min((canvas_width * scale) / source_width, (canvas_height * scale) / source_height)
+    scaled_width = max(1, round(cropped.width() * ratio))
+    scaled_height = max(1, round(cropped.height() * ratio))
+    scaled = cropped.scaled(scaled_width, scaled_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
 
     canvas = QImage(canvas_width, canvas_height, QImage.Format_ARGB32)
     canvas.fill(Qt.transparent)
@@ -161,8 +168,22 @@ def extract_frames() -> list[QImage]:
         rect = QRect(left, 0, right - left + 1, cleaned_sheet.height())
         segment = cleaned_sheet.copy(rect)
         segment = retain_largest_component(segment)
-        frames.append(fit_to_canvas(segment))
+        frames.append(segment)
     return frames
+
+
+def normalize_frames(images: list[QImage]) -> list[QImage]:
+    bounds = [bounding_box(image) for image in images]
+    reference_width = max(bound.width() for bound in bounds)
+    reference_height = max(bound.height() for bound in bounds)
+    return [
+        fit_to_canvas(
+            image,
+            reference_width=reference_width,
+            reference_height=reference_height,
+        )
+        for image in images
+    ]
 
 
 def transform_frame(image: QImage, rotation: float = 0.0, x_scale: float = 1.0, y_scale: float = 1.0) -> QImage:
@@ -180,6 +201,28 @@ def transform_frame(image: QImage, rotation: float = 0.0, x_scale: float = 1.0, 
     return work
 
 
+def offset_frame(image: QImage, dx: int = 0, dy: int = 0) -> QImage:
+    work = QImage(CANVAS_WIDTH, CANVAS_HEIGHT, QImage.Format_ARGB32)
+    work.fill(Qt.transparent)
+    painter = QPainter(work)
+    painter.drawImage(dx, dy, image)
+    painter.end()
+    return work
+
+
+def wag_tail(image: QImage, dx: int = 0, dy: int = 0) -> QImage:
+    # Only nudge the tail tip, never the root connected to the body.
+    tip_rect = QRect(118, 60, 16, 18)
+    tip = image.copy(tip_rect)
+    result = image.copy()
+    painter = QPainter(result)
+    painter.setRenderHint(QPainter.SmoothPixmapTransform)
+    painter.setOpacity(0.45)
+    painter.drawImage(tip_rect.x() + dx, tip_rect.y() + dy, tip)
+    painter.end()
+    return result
+
+
 def save_image(image: QImage, name: str) -> None:
     image.save(str(ACTION_DIR / name))
 
@@ -187,7 +230,7 @@ def save_image(image: QImage, name: str) -> None:
 def write_role_config() -> None:
     pet_conf = {
         "width": CANVAS_WIDTH,
-        "height": 128,
+        "height": CANVAS_HEIGHT,
         "scale": 1.0,
         "refresh": 5,
         "interact_speed": 0.02,
@@ -205,11 +248,11 @@ def write_role_config() -> None:
         ],
     }
     act_conf = {
-        "default": {"images": "stand", "act_num": 5, "frame_refresh": 0.32},
-        "up": {"images": "stand", "act_num": 5, "frame_refresh": 0.32},
-        "down": {"images": "stand", "act_num": 5, "frame_refresh": 0.32},
-        "left": {"images": "stand", "act_num": 5, "frame_refresh": 0.32},
-        "right": {"images": "stand", "act_num": 5, "frame_refresh": 0.32},
+        "default": {"images": "stand", "act_num": 3, "frame_refresh": 0.38},
+        "up": {"images": "stand", "act_num": 3, "frame_refresh": 0.38},
+        "down": {"images": "stand", "act_num": 3, "frame_refresh": 0.38},
+        "left": {"images": "stand", "act_num": 3, "frame_refresh": 0.38},
+        "right": {"images": "stand", "act_num": 3, "frame_refresh": 0.38},
         "drag": {"images": "drag", "act_num": 1},
         "fall": {"images": "fall", "act_num": 1},
         "onfloor": {"images": "onfloor", "act_num": 1, "frame_refresh": 0.08},
@@ -230,20 +273,19 @@ def update_settings() -> None:
 
 def main() -> None:
     ensure_dirs()
-    raw_frames = extract_frames()
+    raw_frames = normalize_frames(extract_frames())
+    base_frame = raw_frames[0]
     selected_frames = [
-        raw_frames[0],
-        raw_frames[1],
-        raw_frames[3],
-        raw_frames[4],
-        raw_frames[1],
+        wag_tail(transform_frame(base_frame, rotation=-0.6, x_scale=1.0, y_scale=1.0), dx=-1),
+        wag_tail(offset_frame(base_frame, dy=-1), dx=0),
+        wag_tail(transform_frame(base_frame, rotation=0.6, x_scale=1.0, y_scale=1.0), dx=1),
     ]
     for index, frame in enumerate(selected_frames):
         save_image(frame, f"stand_{index}.png")
 
     drag = transform_frame(selected_frames[1], rotation=-8.0, x_scale=1.03, y_scale=0.98)
     fall = transform_frame(selected_frames[2], rotation=68.0, x_scale=1.03, y_scale=0.96)
-    onfloor = transform_frame(selected_frames[3], rotation=90.0, x_scale=1.03, y_scale=0.92)
+    onfloor = transform_frame(selected_frames[2], rotation=90.0, x_scale=1.03, y_scale=0.92)
 
     save_image(drag, "drag_0.png")
     save_image(fall, "fall_0.png")
