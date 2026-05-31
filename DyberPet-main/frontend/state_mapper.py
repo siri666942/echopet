@@ -15,12 +15,13 @@ DEFAULT_BUBBLES = {
 }
 
 STATE_ACTION_CANDIDATES = {
-    "idle": ["default", "stand"],
-    "focus": ["focus", "default", "stand"],
-    "focused_stressed": ["focus", "angry", "default", "stand"],
-    "tired": ["sleep", "fall_asleep", "default", "stand"],
-    "frustrated": ["angry", "onfloor", "default", "stand"],
-    "sad": ["sleep", "onfloor", "default", "stand"],
+    "idle": ["站立", "default", "stand"],
+    # EchoDeer currently ships a smaller action set than the original DyberPet
+    # defaults, so keep visible fallbacks here for API mode and debug mode.
+    "focus": ["focus", "lazy", "站立", "default", "stand"],
+    "tired": ["lazy", "sad", "站立", "default", "stand"],
+    "frustrated": ["anxious", "sad", "onfloor", "lazy", "站立", "default", "stand"],
+    "sad": ["sad", "onfloor", "lazy", "站立", "default", "stand"],
 }
 
 EMOTION_TO_STATE = {

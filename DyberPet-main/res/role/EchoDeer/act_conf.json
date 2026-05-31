@@ -9,10 +9,20 @@
     "act_num": 1,
     "frame_refresh": 0.1
   },
+  "focus": {
+    "images": "focus",
+    "act_num": 5,
+    "frame_refresh": 0.22
+  },
   "lazy": {
     "images": "lazy",
     "act_num": 6,
     "frame_refresh": 0.26
+  },
+  "anxious": {
+    "images": "anxious",
+    "act_num": 5,
+    "frame_refresh": 0.2
   },
   "sad": {
     "images": "sad",

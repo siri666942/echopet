@@ -1705,7 +1705,9 @@ class PetWidget(QWidget):
 
     def apply_pet_state(self, state_name):
         acts_config = settings.act_data.allAct_params.get(settings.petname, {})
-        action_name = pick_action_for_state(state_name, acts_config.keys())
+        available_actions = set(acts_config.keys())
+        available_actions.update(getattr(self.pet_conf, "act_name", []))
+        action_name = pick_action_for_state(state_name, available_actions)
         if action_name:
             self._show_act(action_name)
 
