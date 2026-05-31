@@ -1,5 +1,5 @@
 {
-  "width": 144,
+  "width": 148,
   "height": 128,
   "scale": 1.0,
   "refresh": 5,
@@ -19,6 +19,39 @@
         "default"
       ],
       "act_prob": 1.0,
+      "act_type": [
+        2,
+        0
+      ]
+    },
+    {
+      "name": "blink",
+      "act_list": [
+        "blink"
+      ],
+      "act_prob": 0.06,
+      "act_type": [
+        2,
+        0
+      ]
+    },
+    {
+      "name": "lazy",
+      "act_list": [
+        "lazy"
+      ],
+      "act_prob": 0.035,
+      "act_type": [
+        2,
+        0
+      ]
+    },
+    {
+      "name": "sad",
+      "act_list": [
+        "sad"
+      ],
+      "act_prob": 0.025,
       "act_type": [
         2,
         0

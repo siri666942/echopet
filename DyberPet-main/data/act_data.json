@@ -45,6 +45,17 @@
                 -1,
                 -1
             ]
+        },
+        "blink":{
+            "act_type":"random_act",
+            "special_act":false,
+            "unlocked":true,
+            "in_playlist":true,
+            "act_prob":0.06,
+            "status_type":[
+                2,
+                0
+            ]
         }
     }
 }

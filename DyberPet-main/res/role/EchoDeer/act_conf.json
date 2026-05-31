@@ -1,28 +1,43 @@
 {
   "default": {
     "images": "stand",
-    "act_num": 5,
-    "frame_refresh": 0.32
+    "act_num": 3,
+    "frame_refresh": 0.38
+  },
+  "blink": {
+    "images": "blink",
+    "act_num": 1,
+    "frame_refresh": 0.1
+  },
+  "lazy": {
+    "images": "lazy",
+    "act_num": 6,
+    "frame_refresh": 0.26
+  },
+  "sad": {
+    "images": "sad",
+    "act_num": 6,
+    "frame_refresh": 0.24
   },
   "up": {
     "images": "stand",
-    "act_num": 5,
-    "frame_refresh": 0.32
+    "act_num": 3,
+    "frame_refresh": 0.38
   },
   "down": {
     "images": "stand",
-    "act_num": 5,
-    "frame_refresh": 0.32
+    "act_num": 3,
+    "frame_refresh": 0.38
   },
   "left": {
     "images": "stand",
-    "act_num": 5,
-    "frame_refresh": 0.32
+    "act_num": 3,
+    "frame_refresh": 0.38
   },
   "right": {
     "images": "stand",
-    "act_num": 5,
-    "frame_refresh": 0.32
+    "act_num": 3,
+    "frame_refresh": 0.38
   },
   "drag": {
     "images": "drag",
