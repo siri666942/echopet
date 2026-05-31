@@ -1,0 +1,1322 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>EchoPet Demo</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #080a10;
+      --panel: rgba(17, 24, 39, 0.78);
+      --panel-strong: rgba(20, 30, 48, 0.94);
+      --line: rgba(148, 163, 184, 0.22);
+      --text: #f7f7fb;
+      --muted: #a9b0c1;
+      --soft: #dbeafe;
+      --blue: #38bdf8;
+      --violet: #a78bfa;
+      --pink: #f472b6;
+      --green: #34d399;
+      --amber: #fbbf24;
+      --red: #fb7185;
+      --radius: 8px;
+      --shadow: 0 22px 70px rgba(0, 0, 0, 0.34);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--text);
+      font-family:
+        Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", "Microsoft YaHei", sans-serif;
+      background:
+        radial-gradient(circle at 18% 12%, rgba(56, 189, 248, 0.20), transparent 30%),
+        radial-gradient(circle at 86% 4%, rgba(244, 114, 182, 0.16), transparent 24%),
+        linear-gradient(180deg, #080a10 0%, #0c1019 48%, #07080d 100%);
+      line-height: 1.55;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+      background-size: 44px 44px;
+      mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.8), transparent 78%);
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .shell {
+      width: min(1160px, calc(100% - 32px));
+      margin: 0 auto;
+    }
+
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+      background: rgba(8, 10, 16, 0.76);
+      backdrop-filter: blur(18px);
+    }
+
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      height: 64px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    .brand-mark {
+      display: grid;
+      width: 34px;
+      height: 34px;
+      place-items: center;
+      border: 1px solid rgba(56, 189, 248, 0.54);
+      border-radius: 8px;
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.28), rgba(167, 139, 250, 0.20));
+      box-shadow: 0 0 30px rgba(56, 189, 248, 0.22);
+    }
+
+    .brand-mark::before {
+      content: "";
+      width: 15px;
+      height: 15px;
+      border: 3px solid var(--blue);
+      border-left-color: transparent;
+      border-radius: 50%;
+      transform: rotate(-24deg);
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .nav-links a {
+      padding: 8px 10px;
+      border-radius: 8px;
+    }
+
+    .nav-links a:hover {
+      color: var(--text);
+      background: rgba(148, 163, 184, 0.12);
+    }
+
+    .hero {
+      min-height: calc(100vh - 64px);
+      display: grid;
+      align-items: center;
+      padding: 58px 0 40px;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.03fr) minmax(360px, 0.97fr);
+      align-items: center;
+      gap: 40px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--soft);
+      font-size: 14px;
+      font-weight: 700;
+      padding: 7px 10px;
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.64);
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 18px var(--green);
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      margin-top: 22px;
+      max-width: 760px;
+      font-size: clamp(48px, 8vw, 104px);
+      line-height: 0.93;
+      letter-spacing: 0;
+    }
+
+    .gradient-text {
+      color: transparent;
+      background: linear-gradient(90deg, #ffffff, #bae6fd 36%, #fbcfe8 72%, #fde68a);
+      -webkit-background-clip: text;
+      background-clip: text;
+    }
+
+    .hero-copy {
+      max-width: 690px;
+      margin-top: 26px;
+      color: #d6dbe8;
+      font-size: clamp(18px, 2vw, 24px);
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 34px;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      padding: 0 16px;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      border-radius: 8px;
+      color: var(--text);
+      background: rgba(15, 23, 42, 0.74);
+      font-weight: 750;
+    }
+
+    .button.primary {
+      border-color: rgba(56, 189, 248, 0.66);
+      background: linear-gradient(135deg, rgba(14, 165, 233, 0.94), rgba(124, 58, 237, 0.88));
+      box-shadow: 0 18px 45px rgba(56, 189, 248, 0.22);
+    }
+
+    .signal-board {
+      position: relative;
+      min-height: 560px;
+      border: 1px solid rgba(148, 163, 184, 0.20);
+      border-radius: 8px;
+      padding: 22px;
+      background:
+        linear-gradient(180deg, rgba(15, 23, 42, 0.82), rgba(9, 12, 20, 0.92)),
+        repeating-linear-gradient(90deg, transparent 0 13px, rgba(255, 255, 255, 0.03) 14px);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .scene {
+      display: grid;
+      grid-template-columns: 1fr 164px;
+      gap: 16px;
+      align-items: stretch;
+    }
+
+    .desktop {
+      min-height: 245px;
+      border: 1px solid rgba(56, 189, 248, 0.28);
+      border-radius: 8px;
+      background:
+        linear-gradient(180deg, rgba(30, 41, 59, 0.88), rgba(2, 6, 23, 0.92));
+      overflow: hidden;
+    }
+
+    .desktop-top {
+      height: 30px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 12px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+    }
+
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: rgba(148, 163, 184, 0.55);
+    }
+
+    .code {
+      padding: 16px;
+      font: 13px/1.72 Consolas, "Cascadia Code", monospace;
+      color: #c4d5ff;
+    }
+
+    .code span:nth-child(3n + 1) {
+      color: #7dd3fc;
+    }
+
+    .code span:nth-child(3n + 2) {
+      color: #c4b5fd;
+    }
+
+    .clock-card {
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(167, 139, 250, 0.36);
+      border-radius: 8px;
+      background: rgba(30, 27, 75, 0.62);
+      text-align: center;
+    }
+
+    .clock {
+      font-size: 42px;
+      font-weight: 850;
+      color: #e0f2fe;
+    }
+
+    .clock-card small {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+    }
+
+    .pet-panel {
+      position: absolute;
+      right: 22px;
+      bottom: 22px;
+      left: 22px;
+      display: grid;
+      grid-template-columns: 116px 1fr;
+      gap: 16px;
+      align-items: center;
+      padding: 16px;
+      border: 1px solid rgba(244, 114, 182, 0.34);
+      border-radius: 8px;
+      background: rgba(16, 18, 31, 0.86);
+      box-shadow: 0 18px 45px rgba(0, 0, 0, 0.28);
+    }
+
+    .pet {
+      position: relative;
+      width: 100px;
+      height: 112px;
+      margin: 0 auto;
+    }
+
+    .pet::before {
+      content: "";
+      position: absolute;
+      left: 20px;
+      top: 8px;
+      width: 60px;
+      height: 72px;
+      border-radius: 45% 45% 42% 42%;
+      background: linear-gradient(180deg, #fcd34d, #d97706);
+      box-shadow: inset 0 -10px 0 rgba(120, 53, 15, 0.16), 0 0 28px rgba(251, 191, 36, 0.22);
+    }
+
+    .pet::after {
+      content: "";
+      position: absolute;
+      left: 10px;
+      top: 64px;
+      width: 80px;
+      height: 42px;
+      border-radius: 44px 44px 36px 36px;
+      background: linear-gradient(180deg, #fed7aa, #f59e0b);
+    }
+
+    .ear {
+      position: absolute;
+      top: 4px;
+      width: 25px;
+      height: 42px;
+      background: #f59e0b;
+      border-radius: 80% 10% 80% 10%;
+      transform-origin: bottom;
+    }
+
+    .ear.left {
+      left: 9px;
+      transform: rotate(-22deg);
+    }
+
+    .ear.right {
+      right: 9px;
+      transform: scaleX(-1) rotate(-22deg);
+    }
+
+    .face {
+      position: absolute;
+      z-index: 2;
+      left: 31px;
+      top: 35px;
+      width: 38px;
+      height: 26px;
+    }
+
+    .face::before,
+    .face::after {
+      content: "";
+      position: absolute;
+      top: 2px;
+      width: 7px;
+      height: 9px;
+      border-radius: 50%;
+      background: #171717;
+    }
+
+    .face::before {
+      left: 5px;
+    }
+
+    .face::after {
+      right: 5px;
+    }
+
+    .bubble {
+      border-left: 3px solid var(--blue);
+      padding-left: 16px;
+    }
+
+    .bubble strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 22px;
+    }
+
+    .bubble p {
+      color: #dbeafe;
+      font-size: 17px;
+    }
+
+    section {
+      padding: 76px 0;
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: minmax(0, 0.9fr) minmax(300px, 0.7fr);
+      gap: 32px;
+      align-items: end;
+      margin-bottom: 28px;
+    }
+
+    .kicker {
+      color: var(--blue);
+      font-size: 13px;
+      font-weight: 850;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+
+    h2 {
+      margin-top: 8px;
+      font-size: clamp(30px, 4.8vw, 56px);
+      line-height: 1.04;
+      letter-spacing: 0;
+    }
+
+    .section-head p {
+      color: var(--muted);
+      font-size: 17px;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      padding: 20px;
+      box-shadow: 0 12px 38px rgba(0, 0, 0, 0.20);
+    }
+
+    .card h3 {
+      font-size: 20px;
+      margin-bottom: 10px;
+    }
+
+    .card p,
+    .card li {
+      color: var(--muted);
+    }
+
+    .problem-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .compare {
+      min-height: 330px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .compare h3 {
+      font-size: 25px;
+    }
+
+    .compare-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .compare-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 48px;
+      padding: 10px 12px;
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      border-radius: 8px;
+      background: rgba(2, 6, 23, 0.28);
+      color: #d8deeb;
+    }
+
+    .check,
+    .minus {
+      display: grid;
+      flex: 0 0 26px;
+      width: 26px;
+      height: 26px;
+      place-items: center;
+      border-radius: 8px;
+      font-weight: 900;
+    }
+
+    .minus {
+      color: #fecdd3;
+      background: rgba(251, 113, 133, 0.13);
+    }
+
+    .check {
+      color: #bbf7d0;
+      background: rgba(52, 211, 153, 0.13);
+    }
+
+    .quote-band {
+      margin-top: 16px;
+      padding: 20px;
+      border: 1px solid rgba(56, 189, 248, 0.26);
+      border-radius: 8px;
+      background: rgba(8, 47, 73, 0.28);
+      font-size: clamp(22px, 3vw, 36px);
+      font-weight: 850;
+      line-height: 1.2;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      align-items: stretch;
+    }
+
+    .flow-card {
+      position: relative;
+      min-height: 380px;
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      border-radius: 8px;
+      background: var(--panel-strong);
+      padding: 22px;
+      overflow: hidden;
+    }
+
+    .flow-card::after {
+      content: "";
+      position: absolute;
+      inset: auto 0 0;
+      height: 4px;
+      background: linear-gradient(90deg, var(--blue), var(--violet), var(--pink));
+      opacity: 0.85;
+    }
+
+    .step-number {
+      display: grid;
+      width: 42px;
+      height: 42px;
+      place-items: center;
+      border: 1px solid rgba(148, 163, 184, 0.30);
+      border-radius: 8px;
+      color: #ecfeff;
+      background: rgba(56, 189, 248, 0.16);
+      font-weight: 900;
+    }
+
+    .flow-card h3 {
+      margin-top: 18px;
+      font-size: 28px;
+    }
+
+    .flow-card p {
+      margin-top: 10px;
+      color: var(--muted);
+    }
+
+    .signal-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 22px;
+    }
+
+    .signal-item {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+      color: #d8deeb;
+    }
+
+    .signal-item b {
+      color: var(--text);
+    }
+
+    .pipeline {
+      display: grid;
+      grid-template-columns: 0.8fr 1fr 0.8fr;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .stack {
+      display: grid;
+      gap: 12px;
+    }
+
+    .mini-card {
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      border-radius: 8px;
+      padding: 14px;
+      background: rgba(15, 23, 42, 0.66);
+    }
+
+    .mini-card h3 {
+      font-size: 18px;
+      margin-bottom: 6px;
+    }
+
+    .mini-card p {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .bridge {
+      border: 1px solid rgba(167, 139, 250, 0.32);
+      border-radius: 8px;
+      padding: 22px;
+      background: linear-gradient(180deg, rgba(46, 16, 101, 0.46), rgba(15, 23, 42, 0.84));
+    }
+
+    .bridge-step {
+      display: grid;
+      grid-template-columns: 38px 1fr;
+      gap: 12px;
+      align-items: start;
+      padding: 14px 0;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+    }
+
+    .bridge-step:last-child {
+      border-bottom: 0;
+    }
+
+    .bridge-step span {
+      display: grid;
+      width: 32px;
+      height: 32px;
+      place-items: center;
+      border-radius: 8px;
+      background: rgba(167, 139, 250, 0.22);
+      color: #ede9fe;
+      font-weight: 900;
+    }
+
+    .bridge-step h3 {
+      font-size: 18px;
+    }
+
+    .bridge-step p {
+      color: var(--muted);
+      font-size: 14px;
+      margin-top: 3px;
+    }
+
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font: 13px/1.58 Consolas, "Cascadia Code", monospace;
+      color: #d7e3ff;
+    }
+
+    .code-panel {
+      border: 1px solid rgba(56, 189, 248, 0.24);
+      border-radius: 8px;
+      padding: 18px;
+      background: rgba(2, 6, 23, 0.62);
+    }
+
+    .demo-chain {
+      display: grid;
+      grid-template-columns: 0.92fr 1.08fr;
+      gap: 16px;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .metric {
+      padding: 14px;
+      border-radius: 8px;
+      background: rgba(15, 23, 42, 0.62);
+      border: 1px solid rgba(148, 163, 184, 0.16);
+    }
+
+    .metric b {
+      display: block;
+      font-size: 26px;
+      color: #e0f2fe;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .player {
+      display: grid;
+      gap: 16px;
+      padding: 22px;
+      border: 1px solid rgba(52, 211, 153, 0.26);
+      border-radius: 8px;
+      background: linear-gradient(135deg, rgba(5, 46, 22, 0.36), rgba(15, 23, 42, 0.78));
+    }
+
+    .song-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .song-title h3 {
+      font-size: clamp(28px, 4vw, 46px);
+      line-height: 1;
+    }
+
+    .play-button {
+      display: grid;
+      flex: 0 0 58px;
+      width: 58px;
+      height: 58px;
+      place-items: center;
+      border-radius: 50%;
+      border: 1px solid rgba(52, 211, 153, 0.44);
+      background: rgba(52, 211, 153, 0.14);
+    }
+
+    .play-button::before {
+      content: "";
+      width: 0;
+      height: 0;
+      margin-left: 4px;
+      border-top: 11px solid transparent;
+      border-bottom: 11px solid transparent;
+      border-left: 17px solid #bbf7d0;
+    }
+
+    .wave {
+      display: flex;
+      align-items: end;
+      gap: 5px;
+      height: 72px;
+      padding: 10px 0;
+    }
+
+    .wave i {
+      display: block;
+      flex: 1;
+      min-width: 4px;
+      border-radius: 999px 999px 2px 2px;
+      background: linear-gradient(180deg, #bbf7d0, #38bdf8);
+    }
+
+    .wave i:nth-child(1) { height: 30%; }
+    .wave i:nth-child(2) { height: 52%; }
+    .wave i:nth-child(3) { height: 38%; }
+    .wave i:nth-child(4) { height: 80%; }
+    .wave i:nth-child(5) { height: 64%; }
+    .wave i:nth-child(6) { height: 44%; }
+    .wave i:nth-child(7) { height: 72%; }
+    .wave i:nth-child(8) { height: 90%; }
+    .wave i:nth-child(9) { height: 56%; }
+    .wave i:nth-child(10) { height: 34%; }
+    .wave i:nth-child(11) { height: 66%; }
+    .wave i:nth-child(12) { height: 48%; }
+
+    .memory-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      align-items: stretch;
+    }
+
+    .memory-card {
+      display: grid;
+      gap: 14px;
+      border: 1px solid rgba(148, 163, 184, 0.20);
+      border-radius: 8px;
+      padding: 20px;
+      background: var(--panel);
+    }
+
+    .memory-card b {
+      color: var(--blue);
+      font-size: 42px;
+      line-height: 1;
+    }
+
+    .memory-card h3 {
+      font-size: 22px;
+    }
+
+    .memory-card p {
+      color: var(--muted);
+    }
+
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .tag {
+      padding: 6px 9px;
+      border: 1px solid rgba(148, 163, 184, 0.20);
+      border-radius: 999px;
+      color: #dbeafe;
+      background: rgba(15, 23, 42, 0.64);
+      font-size: 13px;
+    }
+
+    .future {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .closing {
+      padding-bottom: 96px;
+      text-align: center;
+    }
+
+    .closing h2 {
+      font-size: clamp(44px, 8vw, 92px);
+    }
+
+    .closing p {
+      max-width: 760px;
+      margin: 18px auto 0;
+      color: #d6dbe8;
+      font-size: clamp(19px, 2.4vw, 28px);
+    }
+
+    @media (max-width: 920px) {
+      .nav-links {
+        display: none;
+      }
+
+      .hero-grid,
+      .section-head,
+      .problem-grid,
+      .pipeline,
+      .demo-chain {
+        grid-template-columns: 1fr;
+      }
+
+      .hero {
+        min-height: auto;
+      }
+
+      .signal-board {
+        min-height: 620px;
+      }
+
+      .flow,
+      .cards,
+      .memory-grid,
+      .future {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .shell {
+        width: min(100% - 22px, 1160px);
+      }
+
+      .hero-grid {
+        gap: 24px;
+      }
+
+      .signal-board {
+        padding: 14px;
+        min-height: 680px;
+      }
+
+      .scene {
+        grid-template-columns: 1fr;
+      }
+
+      .pet-panel {
+        left: 14px;
+        right: 14px;
+        bottom: 14px;
+        grid-template-columns: 1fr;
+        text-align: center;
+      }
+
+      .bubble {
+        border-left: 0;
+        border-top: 3px solid var(--blue);
+        padding: 14px 0 0;
+      }
+
+      .metrics {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="shell nav-inner">
+      <a class="brand" href="#top" aria-label="EchoPet 首页">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span>EchoPet</span>
+      </a>
+      <div class="nav-links" aria-label="页面导航">
+        <a href="#problem">痛点</a>
+        <a href="#agent">Agent</a>
+        <a href="#recommend">推荐</a>
+        <a href="#memory">记忆</a>
+        <a href="#demo">Demo</a>
+      </div>
+    </div>
+  </nav>
+
+  <main id="top">
+    <header class="hero shell">
+      <div class="hero-grid">
+        <div>
+          <span class="eyebrow">轻量桌宠 / 音乐陪伴 / 状态感知</span>
+          <h1><span class="gradient-text">EchoPet</span><br />懂你此刻状态的音乐 Agent</h1>
+          <p class="hero-copy">
+            EchoPet 不是让用户去找音乐，而是让音乐主动理解用户当前的状态：语音、上下文、键盘节奏和长期记忆一起决定此刻该播放什么。
+          </p>
+          <div class="hero-actions">
+            <a class="button primary" href="#demo">查看完整链路</a>
+            <a class="button" href="#agent">Observe → Think → Act</a>
+          </div>
+        </div>
+
+        <div class="signal-board" aria-label="深夜写代码场景演示">
+          <div class="scene">
+            <div class="desktop">
+              <div class="desktop-top">
+                <span class="dot"></span>
+                <span class="dot"></span>
+                <span class="dot"></span>
+              </div>
+              <div class="code" aria-hidden="true">
+                <span>function</span> recommendMusic(state) {<br />
+                &nbsp;&nbsp;<span>const</span> query = translateMoment(state);<br />
+                &nbsp;&nbsp;<span>return</span> rankSongs(query, memory);<br />
+                }<br /><br />
+                <span>// VSCode Debugging</span><br />
+                stress: 0.61<br />
+                focus: 0.72<br />
+                typing: "high_activity_unstable"
+              </div>
+            </div>
+            <div class="clock-card">
+              <div>
+                <div class="clock">02:00</div>
+                <small>VSCode / Debug</small>
+              </div>
+            </div>
+          </div>
+
+          <div class="pet-panel">
+            <div class="pet" aria-hidden="true">
+              <span class="ear left"></span>
+              <span class="ear right"></span>
+              <span class="face"></span>
+            </div>
+            <div class="bubble">
+              <strong>你现在有点紧。</strong>
+              <p>我先放点稳一点的：中低能量、稳定节奏、不吵、不太悲伤的器乐音乐。</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <section id="problem">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <div class="kicker">Pain Point</div>
+            <h2>音乐很多，但它们不了解此刻的你</h2>
+          </div>
+          <p>
+            凌晨 2 点，用户在 VSCode 里 Debug。传统音乐软件知道听歌历史，却不知道用户为什么现在需要音乐。
+          </p>
+        </div>
+
+        <div class="problem-grid">
+          <article class="card compare">
+            <div>
+              <h3>传统音乐软件</h3>
+              <div class="compare-list">
+                <div class="compare-row"><span class="minus">-</span>需要打开 App</div>
+                <div class="compare-row"><span class="minus">-</span>需要搜索和选择歌单</div>
+                <div class="compare-row"><span class="minus">-</span>只知道过去听过什么</div>
+                <div class="compare-row"><span class="minus">-</span>用户自己判断现在该听什么</div>
+              </div>
+            </div>
+            <div class="quote-band">You search for music.</div>
+          </article>
+
+          <article class="card compare">
+            <div>
+              <h3>EchoPet</h3>
+              <div class="compare-list">
+                <div class="compare-row"><span class="check">✓</span>常驻桌面，不打断当前工作</div>
+                <div class="compare-row"><span class="check">✓</span>理解语音、时间、应用和键盘状态</div>
+                <div class="compare-row"><span class="check">✓</span>结合长期偏好与历史反馈</div>
+                <div class="compare-row"><span class="check">✓</span>主动生成当前音乐意图</div>
+              </div>
+            </div>
+            <div class="quote-band">Music understands your moment.</div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="agent">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <div class="kicker">Agent Loop</div>
+            <h2>Observe → Think → Act</h2>
+          </div>
+          <p>
+            EchoPet 的核心不是播放器 UI，而是一个围绕当前状态运行的音乐 Agent：观察、理解、执行，再把结果沉淀进记忆。
+          </p>
+        </div>
+
+        <div class="flow">
+          <article class="flow-card">
+            <div class="step-number">01</div>
+            <h3>Observe 观察</h3>
+            <p>综合语音输入、当前应用、时间、键盘行为和历史听歌行为，推断用户当前工作状态。</p>
+            <div class="signal-list">
+              <div class="signal-item"><b>语音</b><span>今天 debug 一天了，有点烦</span></div>
+              <div class="signal-item"><b>应用</b><span>VSCode</span></div>
+              <div class="signal-item"><b>时间</b><span>02:00</span></div>
+              <div class="signal-item"><b>键盘</b><span>高频输入 / 退格较多</span></div>
+              <div class="signal-item"><b>偏好</b><span>LoFi / 民谣 / 钢琴</span></div>
+            </div>
+          </article>
+
+          <article class="flow-card">
+            <div class="step-number">02</div>
+            <h3>Think 思考</h3>
+            <p>系统不会简单判定“开心”或“难过”，而是把复杂状态翻译成可以检索音乐的语言。</p>
+            <div class="code-panel" style="margin-top: 22px;">
+              <pre>{
+  "focus": 0.72,
+  "stress": 0.61,
+  "fatigue": 0.35,
+  "typing_state": "high_activity_unstable"
+}</pre>
+            </div>
+          </article>
+
+          <article class="flow-card">
+            <div class="step-number">03</div>
+            <h3>Act 执行</h3>
+            <p>生成播放队列，通过本地播放器播放合适音乐，并让桌宠以轻量气泡给出回应。</p>
+            <div class="signal-list">
+              <div class="signal-item"><b>推荐</b><span>Midnight Rain</span></div>
+              <div class="signal-item"><b>类型</b><span>LoFi / Instrumental</span></div>
+              <div class="signal-item"><b>BPM</b><span>85</span></div>
+              <div class="signal-item"><b>理由</b><span>节奏稳定，中低能量</span></div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="recommend">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <div class="kicker">Recommendation</div>
+            <h2>把用户状态和音乐特征连接起来</h2>
+          </div>
+          <p>
+            EchoPet 不是纯规则，也不是把全曲库交给 AI。它先理解人，再用 embedding 召回音乐，最后结合反馈和画像精排。
+          </p>
+        </div>
+
+        <div class="pipeline">
+          <div class="stack">
+            <div class="mini-card">
+              <h3>用户理解</h3>
+              <p>语音文本、键盘状态、上下文、用户画像。</p>
+            </div>
+            <div class="mini-card">
+              <h3>音乐需求</h3>
+              <p>中等偏低能量、节奏稳定、有支撑感、不吵、不太悲伤。</p>
+            </div>
+            <div class="mini-card">
+              <h3>当前约束</h3>
+              <p>深夜写代码，需要继续专注，避免高刺激音乐。</p>
+            </div>
+          </div>
+
+          <div class="bridge">
+            <div class="bridge-step">
+              <span>1</span>
+              <div>
+                <h3>LLM 生成 retrieval_query</h3>
+                <p>把人的复杂状态翻译成音乐检索语言。</p>
+              </div>
+            </div>
+            <div class="bridge-step">
+              <span>2</span>
+              <div>
+                <h3>Embedding 召回 Top20</h3>
+                <p>匹配 query embedding 与歌曲描述 embedding。</p>
+              </div>
+            </div>
+            <div class="bridge-step">
+              <span>3</span>
+              <div>
+                <h3>Score 重排 Top5</h3>
+                <p>0.65 语义相似 + 0.20 反馈 + 0.10 画像 - 0.05 重复。</p>
+              </div>
+            </div>
+            <div class="bridge-step">
+              <span>4</span>
+              <div>
+                <h3>AI 最终播放队列</h3>
+                <p>只对少量候选做最终排序，保证稳定性和个性化。</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="stack">
+            <div class="mini-card">
+              <h3>音乐理解</h3>
+              <p>本地音乐文件经过 Essentia 特征提取。</p>
+            </div>
+            <div class="mini-card">
+              <h3>歌曲描述</h3>
+              <p>只描述歌曲本身，不预设“适合写代码”之类场景。</p>
+            </div>
+            <div class="mini-card">
+              <h3>歌曲向量</h3>
+              <p>为每首歌生成 description embedding，用于语义召回。</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="demo">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <div class="kicker">Live Story</div>
+            <h2>一次完整推荐是如何发生的</h2>
+          </div>
+          <p>
+            这条 Demo 主线从一句自然语言开始，经过状态感知、音乐理解和推荐排序，最后更新长期记忆。
+          </p>
+        </div>
+
+        <div class="demo-chain">
+          <article class="card">
+            <h3>输入与状态</h3>
+            <p>用户说：“今天 debug 一天了，有点烦。”</p>
+            <div class="metrics">
+              <div class="metric"><b>0.72</b><span>Focus</span></div>
+              <div class="metric"><b>0.61</b><span>Stress</span></div>
+              <div class="metric"><b>0.35</b><span>Fatigue</span></div>
+              <div class="metric"><b>0.58</b><span>Stability</span></div>
+            </div>
+            <div class="code-panel" style="margin-top: 16px;">
+              <pre>{
+  "hour": 2,
+  "active_app": "VSCode",
+  "kpm": 160,
+  "backspace_ratio": 0.22,
+  "likes": ["lofi", "piano", "ambient"],
+  "dislikes": ["heavy metal", "aggressive rock"]
+}</pre>
+            </div>
+          </article>
+
+          <article class="player">
+            <div class="song-title">
+              <div>
+                <p class="kicker">Now Playing</p>
+                <h3>Midnight Rain</h3>
+              </div>
+              <div class="play-button" aria-hidden="true"></div>
+            </div>
+            <p>LoFi · Instrumental · BPM 85 · Stable Rhythm</p>
+            <div class="wave" aria-hidden="true">
+              <i></i><i></i><i></i><i></i><i></i><i></i>
+              <i></i><i></i><i></i><i></i><i></i><i></i>
+            </div>
+            <div class="code-panel">
+              <pre>{
+  "song_id": "s001",
+  "completion_rate": 0.85,
+  "ended_reason": "finished",
+  "memory_update": "深夜写代码、高压力状态下，更容易接受稳定节奏、中低能量、器乐类音乐。"
+}</pre>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="memory">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <div class="kicker">Memory</div>
+            <h2>从播放记录到个人音乐品味</h2>
+          </div>
+          <p>
+            传统播放器记住的是你听了哪首歌。EchoPet 记住的是你在什么状态下，需要什么样的音乐。
+          </p>
+        </div>
+
+        <div class="memory-grid">
+          <article class="memory-card">
+            <b>01</b>
+            <h3>PlaySession Log</h3>
+            <p>记录事实：时间、应用、键盘状态、检索意图、歌曲和完播率。</p>
+            <div class="tag-row">
+              <span class="tag">02:00</span>
+              <span class="tag">VSCode</span>
+              <span class="tag">s001</span>
+              <span class="tag">0.85</span>
+            </div>
+          </article>
+
+          <article class="memory-card">
+            <b>02</b>
+            <h3>User Profile</h3>
+            <p>总结长期偏好：喜欢、跳过、场景偏好、键盘状态基线和隐式模式。</p>
+            <div class="tag-row">
+              <span class="tag">LoFi</span>
+              <span class="tag">Piano</span>
+              <span class="tag">Ambient</span>
+              <span class="tag">Night Coding</span>
+            </div>
+          </article>
+
+          <article class="memory-card">
+            <b>03</b>
+            <h3>Reflection</h3>
+            <p>每隔一段时间读取近期日志，生成 profile patch，更新用户音乐画像。</p>
+            <div class="tag-row">
+              <span class="tag">Reflect</span>
+              <span class="tag">Patch</span>
+              <span class="tag">Personalize</span>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <div class="kicker">Future</div>
+            <h2>未来可以走向哪里</h2>
+          </div>
+          <p>
+            EchoPet 可以从本地曲库 Demo 延伸为个人 Agent 的音乐记忆层，承载长期听觉偏好和场景化陪伴。
+          </p>
+        </div>
+        <div class="future">
+          <article class="card">
+            <h3>接入音乐平台</h3>
+            <p>利用 QQ 音乐、网易云等平台中的真实收藏、歌单和长期听歌偏好。</p>
+          </article>
+          <article class="card">
+            <h3>接入 AI Music</h3>
+            <p>AI 生成音乐可以直接进入个人曲库，和本地音乐一起被理解、推荐和记忆。</p>
+          </article>
+          <article class="card">
+            <h3>个人 Agent 记忆层</h3>
+            <p>听歌习惯反映审美、情绪模式、工作节奏和生活场景。</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="closing shell">
+      <h2><span class="gradient-text">EchoPet</span></h2>
+      <p>让音乐从被搜索的内容，变成理解用户的 Agent。</p>
+      <p>A Music Agent That Understands Your Moment.</p>
+    </section>
+  </main>
+</body>
+</html>
