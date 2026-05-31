@@ -5,7 +5,7 @@
 
 注意：
     如果本机没有 faster-whisper 模型或依赖不可用，服务不会崩。
-    它会返回空 transcript，让前端流程至少能跑下去。
+    它会返回 503，让前端明确提示转写服务不可用。
 """
 
 from fastapi import APIRouter

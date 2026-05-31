@@ -12,22 +12,27 @@
     7. 删除临时文件
     8. 返回 transcript
 
-兜底路径：
+失败路径：
     如果 faster-whisper 没装好，或者模型加载失败：
     - 不让服务崩
-    - 返回空 transcript
-    - 前端仍然可以用文本输入继续走 /api/analyze
+    - 返回 503，并带上明确原因
+    - 不再用 200 + 空 transcript 伪装成功
 """
 
 import base64
 import binascii
+import logging
 import os
 import tempfile
+from pathlib import Path
 
 from fastapi import HTTPException
 
 from backend.config import settings
 
+
+logger = logging.getLogger(__name__)
+_REQUIRED_MODEL_FILES = ("model.bin", "config.json")
 
 # Whisper 模型对象。
 # 模型比较重，所以不要每次请求都加载。
@@ -36,6 +41,9 @@ _model = None
 # 记录模型是否加载失败过。
 # 如果失败过，后续就不重复尝试，避免每次请求都卡很久。
 _model_failed = False
+
+# 保存最近一次模型加载失败的原因，用来给前端返回可理解的错误。
+_model_error = ""
 
 
 async def transcribe(audio_base64: str, audio_format: str = "wav") -> dict:
@@ -67,8 +75,12 @@ async def transcribe(audio_base64: str, audio_format: str = "wav") -> dict:
 
     model = _get_model()
     if model is None:
-        # faster-whisper 不可用时的兜底返回。
-        return {"transcript": "", "language": "zh", "source": "faster-whisper"}
+        detail = (
+            "faster-whisper model unavailable"
+            if not _model_error
+            else f"faster-whisper model unavailable: {_model_error}"
+        )
+        raise HTTPException(status_code=503, detail=detail)
 
     suffix = f".{audio_format.lstrip('.') or 'wav'}"
     temp_path = None
@@ -103,7 +115,7 @@ def _get_model():
         - 或 None，表示模型不可用
     """
 
-    global _model, _model_failed
+    global _model, _model_failed, _model_error
 
     if _model is not None:
         return _model
@@ -114,13 +126,38 @@ def _get_model():
     try:
         from faster_whisper import WhisperModel
 
+        model_source = _resolve_model_source()
         _model = WhisperModel(
-            settings.whisper_model,
+            model_source,
             device=settings.whisper_device,
             compute_type=settings.whisper_compute_type,
+            download_root=str(_model_download_dir()),
         )
-    except Exception:
+    except Exception as exc:
         _model_failed = True
         _model = None
+        _model_error = str(exc)
+        logger.exception("Failed to load faster-whisper model")
 
     return _model
+
+
+def _model_download_dir() -> Path:
+    model_name = settings.whisper_model.replace("/", "--")
+    return settings.whisper_model_dir / model_name
+
+
+def _resolve_model_source() -> str:
+    model_dir = _model_download_dir()
+    if all((model_dir / filename).exists() for filename in _REQUIRED_MODEL_FILES):
+        return str(model_dir)
+    return settings.whisper_model
+
+
+def reset_model_cache_for_tests() -> None:
+    """重置懒加载状态，供测试使用。"""
+
+    global _model, _model_failed, _model_error
+    _model = None
+    _model_failed = False
+    _model_error = ""

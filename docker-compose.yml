@@ -23,6 +23,10 @@ services:
       EMBEDDING_PROVIDER: local
       LOCAL_EMBEDDING_MODEL: BAAI/bge-small-zh-v1.5
       LOCAL_EMBEDDING_CACHE_DIR: /app/backend/models/fastembed
+      WHISPER_MODEL_DIR: /app/backend/models/faster-whisper
+      HF_ENDPOINT: https://hf-mirror.com
+      HF_HOME: /app/backend/models/huggingface
+      HUGGINGFACE_HUB_CACHE: /app/backend/models/huggingface/hub
       ENABLE_MPV: "false"
     ports:
       - "8000:8000"

@@ -16,6 +16,8 @@ $FrontendRequirements = Join-Path $FrontendRoot "requirements.txt"
 $FrontendPidFile = Join-Path $RuntimeDir "frontend.pid"
 $MusicDir = Join-Path $RepoRoot "backend\music"
 $MusicManifestFile = Join-Path $RuntimeDir "music_manifest.sha256"
+$WhisperModelDir = Join-Path $RepoRoot "backend\models\faster-whisper"
+$HuggingFaceCacheDir = Join-Path $RepoRoot "backend\models\huggingface"
 
 function Write-Step([string]$Message) {
     Write-Host "[EchoPet] $Message"
@@ -85,6 +87,29 @@ function Sync-MusicIndex {
     }
 }
 
+function Ensure-WhisperModel {
+    Write-Step "Preparing faster-whisper model..."
+    New-Item -ItemType Directory -Path $WhisperModelDir -Force | Out-Null
+    New-Item -ItemType Directory -Path $HuggingFaceCacheDir -Force | Out-Null
+
+    $previousWhisperModelDir = $env:WHISPER_MODEL_DIR
+    $previousHfHome = $env:HF_HOME
+    $previousHfCache = $env:HUGGINGFACE_HUB_CACHE
+    try {
+        $env:WHISPER_MODEL_DIR = $WhisperModelDir
+        $env:HF_HOME = $HuggingFaceCacheDir
+        $env:HUGGINGFACE_HUB_CACHE = Join-Path $HuggingFaceCacheDir "hub"
+        py -3.11 -m backend.scripts.download_whisper_model
+    }
+    finally {
+        $env:WHISPER_MODEL_DIR = $previousWhisperModelDir
+        $env:HF_HOME = $previousHfHome
+        $env:HUGGINGFACE_HUB_CACHE = $previousHfCache
+    }
+
+    docker compose exec -T echopet-backend python -m backend.scripts.download_whisper_model
+}
+
 function Ensure-FrontendVenv {
     if (-not (Test-Path $FrontendPython)) {
         Write-Step "Creating frontend venv..."
@@ -146,6 +171,7 @@ try {
     Wait-Backend -Port $BackendPort
     Write-Step "Backend is ready at http://127.0.0.1:$BackendPort"
 
+    Ensure-WhisperModel
     Sync-MusicIndex
     Ensure-FrontendVenv
     Start-Frontend
