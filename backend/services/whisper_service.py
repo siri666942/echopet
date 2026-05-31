@@ -12,16 +12,17 @@
     7. 删除临时文件
     8. 返回 transcript
 
-兜底路径：
+失败路径：
     如果 faster-whisper 没装好，或者模型加载失败：
     - 不让服务崩
-    - 返回空 transcript
-    - 前端仍然可以用文本输入继续走 /api/analyze
+    - 返回 503，并带上明确原因
+    - 不再用 200 + 空 transcript 伪装成功
 """
 
 import asyncio
 import base64
 import binascii
+import logging
 import os
 import tempfile
 import threading
@@ -30,6 +31,9 @@ from fastapi import HTTPException
 
 from backend.config import settings
 
+
+logger = logging.getLogger(__name__)
+_REQUIRED_MODEL_FILES = ("model.bin", "config.json")
 
 # Whisper 模型对象。
 # 模型比较重，所以不要每次请求都加载。
@@ -72,8 +76,11 @@ async def transcribe(audio_base64: str, audio_format: str = "wav") -> dict:
     # 模型加载和转写都比较重，放到后台线程，避免阻塞整个 uvicorn 进程。
     model = await asyncio.to_thread(_get_model)
     if model is None:
-        detail = _model_error_message or "faster-whisper unavailable"
-        raise HTTPException(status_code=503, detail=f"transcribe backend unavailable: {detail}")
+        detail = _model_error_message or _model_error or "faster-whisper unavailable"
+        raise HTTPException(
+            status_code=503,
+            detail=f"transcribe backend unavailable: faster-whisper model unavailable: {detail}",
+        )
 
     suffix = f".{audio_format.lstrip('.') or 'wav'}"
     temp_path = None
@@ -105,7 +112,7 @@ def _get_model():
         - 或 None，表示模型不可用
     """
 
-    global _model, _model_failed, _model_error_message
+    global _model, _model_failed, _model_error, _model_error_message
 
     if _model is not None:
         return _model

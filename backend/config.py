@@ -84,8 +84,9 @@ class Settings(BaseSettings):
     essentia_acoustic_electronic_model_path: str = str(ESSENTIA_MODEL_DIR / "nsynth_acoustic_electronic-discogs-effnet-1.pb")
 
     # faster-whisper 配置。
-    # 如果模型不可用，whisper_service 会返回空 transcript，不让服务崩。
+    # 模型不可用时，whisper_service 会返回 503，避免前端把空转写当成功。
     whisper_model: str = "base"
+    whisper_model_dir: Path = BACKEND_DIR / "models" / "faster-whisper"
     whisper_device: str = "cpu"
     whisper_compute_type: str = "int8"
 
@@ -129,6 +130,7 @@ def get_settings() -> Settings:
     settings.music_dir.mkdir(parents=True, exist_ok=True)
     settings.essentia_model_dir.mkdir(parents=True, exist_ok=True)
     settings.local_embedding_cache_dir.mkdir(parents=True, exist_ok=True)
+    settings.whisper_model_dir.mkdir(parents=True, exist_ok=True)
 
     # 如果用的是 SQLite，就解析出 db 文件路径，确保父目录存在。
     db_path = _sqlite_path(settings.database_url)
