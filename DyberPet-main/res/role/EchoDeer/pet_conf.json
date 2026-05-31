@@ -36,11 +36,33 @@
       ]
     },
     {
+      "name": "focus",
+      "act_list": [
+        "focus"
+      ],
+      "act_prob": 0,
+      "act_type": [
+        2,
+        0
+      ]
+    },
+    {
       "name": "sad",
       "act_list": [
         "sad"
       ],
       "act_prob": 0.025,
+      "act_type": [
+        2,
+        0
+      ]
+    },
+    {
+      "name": "anxious",
+      "act_list": [
+        "anxious"
+      ],
+      "act_prob": 0,
       "act_type": [
         2,
         0
