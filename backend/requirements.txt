@@ -11,5 +11,5 @@ openai==1.50.2
 faster-whisper==1.0.3
 python-multipart==0.0.12
 python-mpv==1.0.7
-essentia-tensorflow==2.1b6.dev1110
 numpy==1.26.4
+fastembed==0.4.2

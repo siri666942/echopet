@@ -10,6 +10,7 @@ import threading
 from typing import List
 from pathlib import Path
 import pynput.mouse as mouse
+import shiboken6
 
 from PySide6.QtWidgets import *
 from PySide6.QtCore import Qt, QTimer, QObject, QPoint, QEvent, QElapsedTimer
@@ -1817,10 +1818,14 @@ class PetWidget(QWidget):
         if status not in ['hp','fv']:
             return
         elif status == 'hp':
+            if not hasattr(self, "pet_hp") or not shiboken6.isValid(self.pet_hp):
+                return
             
             diff = self.pet_hp.updateValue(change_value, from_mod)
 
         elif status == 'fv':
+            if not hasattr(self, "pet_fv") or not shiboken6.isValid(self.pet_fv):
+                return
             
             diff = self.pet_fv.updateValue(change_value, from_mod)
 

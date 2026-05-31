@@ -59,12 +59,6 @@ def _extract_basic_features(file_path: str) -> dict:
     key, scale, _ = es.KeyExtractor()(audio)
 
     duration = float(len(audio) / 44100.0)
-    try:
-        metadata = es.MetadataReader(filename=file_path)()
-        sample_rate = float(metadata[8]) if len(metadata) > 8 and metadata[8] else 44100.0
-        duration = float(len(audio) / sample_rate)
-    except Exception:
-        pass
 
     return {
         "duration": duration,
@@ -80,13 +74,23 @@ def _extract_basic_features(file_path: str) -> dict:
 
 
 def _extract_semantic_features(file_path: str) -> dict:
-    """Essentia TensorFlow 模型语义特征。
+    """Essentia TensorFlow 语义特征。
 
-    每个模型路径都必须配置，否则视为分析失败。
-    不同 Essentia 模型输出形状可能不同，这里统一转成可 JSON 化的结构。
+    Essentia 的很多分类模型不是"直接吃 mp3"的模型，而是两段式：
+
+    1. 先用官方 embedding 模型把音频变成一串向量。
+       - MSD MusicNN embedding 用于情绪、舞曲性、人声/器乐、唤醒度/愉悦度。
+       - Discogs Effnet embedding 用于 Discogs 400 风格分类和 acoustic/electronic。
+
+    2. 再把 embedding 喂给对应 classification head。
+
+    这里仍然只使用 Essentia / Essentia TensorFlow。
+    如果任何模型文件缺失或推理失败，直接抛错，歌曲入库失败。
     """
 
-    model_paths = {
+    required_paths = {
+        "msd_embedding": settings.essentia_msd_embedding_model_path,
+        "discogs_embedding": settings.essentia_discogs_embedding_model_path,
         "genre": settings.essentia_genre_model_path,
         "mood": settings.essentia_mood_model_path,
         "danceability": settings.essentia_danceability_model_path,
@@ -94,59 +98,149 @@ def _extract_semantic_features(file_path: str) -> dict:
         "voice_instrumental": settings.essentia_voice_instrumental_model_path,
         "acoustic_electronic": settings.essentia_acoustic_electronic_model_path,
     }
-    missing = [name for name, path in model_paths.items() if not path]
+    missing = [name for name, path in required_paths.items() if not path or not Path(path).exists()]
     if missing:
         raise AudioFeatureExtractionError(
-            "missing Essentia TensorFlow model paths: " + ", ".join(missing)
+            "missing Essentia TensorFlow model files: " + ", ".join(missing)
         )
 
+    msd_embedding = _extract_msd_musicnn_embedding(
+        file_path, settings.essentia_msd_embedding_model_path
+    )
+    discogs_embedding = _extract_discogs_effnet_embedding(
+        file_path, settings.essentia_discogs_embedding_model_path
+    )
+
+    mood_scores = _scores_from_vector(
+        _predict_2d_head(msd_embedding, settings.essentia_mood_model_path),
+        ["happy", "sad", "aggressive", "relaxed", "party"],
+    )
+    genre_scores = _top_index_scores(
+        _predict_2d_head(discogs_embedding, settings.essentia_genre_model_path),
+        prefix="discogs_genre",
+        limit=8,
+    )
+    danceability_scores = _scores_from_vector(
+        _predict_2d_head(msd_embedding, settings.essentia_danceability_model_path),
+        ["not_danceable", "danceable"],
+    )
+    arousal_valence = _average_prediction(
+        _predict_2d_head(msd_embedding, settings.essentia_arousal_valence_model_path)
+    )
+    voice_scores = _scores_from_vector(
+        _predict_2d_head(msd_embedding, settings.essentia_voice_instrumental_model_path),
+        ["instrumental", "voice"],
+    )
+    acoustic_electronic_scores = _scores_from_vector(
+        _predict_2d_head(
+            discogs_embedding,
+            settings.essentia_acoustic_electronic_model_path,
+        ),
+        ["acoustic", "electronic"],
+    )
+
     return {
-        "genre": _predict_tensorflow_model(file_path, model_paths["genre"]),
-        "mood": _predict_tensorflow_model(file_path, model_paths["mood"]),
-        "danceability": _predict_tensorflow_model(file_path, model_paths["danceability"]),
-        "arousal": _extract_named_value(
-            _predict_tensorflow_model(file_path, model_paths["arousal_valence"]), 0
-        ),
-        "valence": _extract_named_value(
-            _predict_tensorflow_model(file_path, model_paths["arousal_valence"]), 1
-        ),
-        "voice_instrumental": _predict_tensorflow_model(
-            file_path, model_paths["voice_instrumental"]
-        ),
-        "acoustic_electronic": _predict_tensorflow_model(
-            file_path, model_paths["acoustic_electronic"]
-        ),
+        "genre": genre_scores,
+        "mood": mood_scores,
+        "danceability": danceability_scores,
+        "arousal": _bounded_value(arousal_valence, 0),
+        "valence": _bounded_value(arousal_valence, 1),
+        "voice_instrumental": voice_scores,
+        "acoustic_electronic": acoustic_electronic_scores,
     }
 
 
-def _predict_tensorflow_model(file_path: str, model_path: str | None) -> dict:
+def _extract_msd_musicnn_embedding(file_path: str, model_path: str) -> Any:
     try:
         import essentia.standard as es
     except Exception as exc:
         raise AudioFeatureExtractionError("Essentia TensorFlow support is not installed") from exc
 
-    if not model_path:
-        raise AudioFeatureExtractionError("model path is required")
+    audio = es.MonoLoader(filename=file_path, sampleRate=16000)()
+    return es.TensorflowPredictMusiCNN(graphFilename=model_path, output="model/dense/BiasAdd")(audio)
+
+
+def _extract_discogs_effnet_embedding(file_path: str, model_path: str) -> Any:
+    try:
+        import essentia.standard as es
+    except Exception as exc:
+        raise AudioFeatureExtractionError("Essentia TensorFlow support is not installed") from exc
 
     audio = es.MonoLoader(filename=file_path, sampleRate=16000)()
+    return es.TensorflowPredictEffnetDiscogs(
+        graphFilename=model_path,
+        output="PartitionedCall:1",
+    )(audio)
 
-    # TensorflowPredictMusiCNN 是 Essentia 官方 TensorFlow 模型常用入口。
-    # 如果某个模型需要专用前处理，部署时应换成对应 Essentia 模型类；
-    # 这里仍然只调用 Essentia TensorFlow，不引入其他库或 fallback。
+
+def _predict_2d_head(embedding: Any, model_path: str) -> Any:
     try:
-        prediction = es.TensorflowPredictMusiCNN(graphFilename=model_path)(audio)
-    except Exception:
-        prediction = es.TensorflowPredict(graphFilename=model_path)(audio)
+        import essentia.standard as es
+    except Exception as exc:
+        raise AudioFeatureExtractionError("Essentia TensorFlow support is not installed") from exc
 
-    return {"raw": _to_jsonable(prediction)}
+    inputs = ["serving_default_model_Placeholder", "model/Placeholder"]
+    outputs = [
+        "PartitionedCall",
+        "StatefulPartitionedCall",
+        "model/Softmax",
+        "model/Sigmoid",
+        "model/Identity",
+        "Identity",
+    ]
+    last_error: Exception | None = None
+    for input_name in inputs:
+        for output in outputs:
+            try:
+                return es.TensorflowPredict2D(
+                    graphFilename=model_path,
+                    input=input_name,
+                    output=output,
+                )(embedding)
+            except Exception as exc:
+                last_error = exc
+    raise AudioFeatureExtractionError(
+        f"Essentia TensorFlow classifier failed for {model_path}: {last_error}"
+    )
 
 
-def _extract_named_value(prediction: dict, index: int) -> float:
-    raw = prediction.get("raw", [])
-    flat = _flatten(raw)
-    if index >= len(flat):
+def _scores_from_vector(value: Any, labels: list[str]) -> dict[str, float]:
+    flat = _average_prediction(value)
+    if not flat:
+        raise AudioFeatureExtractionError("classifier output is empty")
+    scores = {}
+    for index, label in enumerate(labels):
+        if index < len(flat):
+            scores[label] = float(flat[index])
+    return scores
+
+
+def _top_index_scores(value: Any, prefix: str, limit: int) -> dict[str, float]:
+    flat = _average_prediction(value)
+    if not flat:
+        raise AudioFeatureExtractionError("classifier output is empty")
+    indexed = sorted(enumerate(flat), key=lambda item: item[1], reverse=True)[:limit]
+    return {f"{prefix}_{index}": float(score) for index, score in indexed}
+
+
+def _bounded_value(values: list[float], index: int) -> float:
+    if index >= len(values):
         raise AudioFeatureExtractionError("arousal/valence model output is too short")
-    return float(flat[index])
+    return float(values[index])
+
+
+def _average_prediction(value: Any) -> list[float]:
+    if hasattr(value, "tolist"):
+        value = value.tolist()
+    if isinstance(value, list) and value and isinstance(value[0], list):
+        width = len(value[0])
+        if width == 0:
+            return []
+        return [
+            float(sum(float(row[index]) for row in value if len(row) > index) / len(value))
+            for index in range(width)
+        ]
+    return _flatten(value)
 
 
 def _to_jsonable(value: Any):
@@ -165,6 +259,8 @@ def _to_jsonable(value: Any):
 
 
 def _flatten(value) -> list[float]:
+    if hasattr(value, "tolist"):
+        return _flatten(value.tolist())
     if isinstance(value, list):
         result: list[float] = []
         for item in value:

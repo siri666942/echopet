@@ -1,0 +1,33 @@
+services:
+  echopet-backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: echopet-backend
+    env_file:
+      - .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8000
+      DATABASE_URL: sqlite:////app/backend/db/echopet.db
+      MUSIC_DIR: /app/backend/music
+      ESSENTIA_MODEL_DIR: /app/backend/models/essentia
+      ESSENTIA_MSD_EMBEDDING_MODEL_PATH: /app/backend/models/essentia/msd-musicnn-1.pb
+      ESSENTIA_DISCOGS_EMBEDDING_MODEL_PATH: /app/backend/models/essentia/discogs-effnet-bs64-1.pb
+      ESSENTIA_GENRE_MODEL_PATH: /app/backend/models/essentia/genre_discogs400-discogs-effnet-1.pb
+      ESSENTIA_MOOD_MODEL_PATH: /app/backend/models/essentia/moods_mirex-msd-musicnn-1.pb
+      ESSENTIA_DANCEABILITY_MODEL_PATH: /app/backend/models/essentia/danceability-msd-musicnn-1.pb
+      ESSENTIA_AROUSAL_VALENCE_MODEL_PATH: /app/backend/models/essentia/deam-msd-musicnn-2.pb
+      ESSENTIA_VOICE_INSTRUMENTAL_MODEL_PATH: /app/backend/models/essentia/voice_instrumental-msd-musicnn-1.pb
+      ESSENTIA_ACOUSTIC_ELECTRONIC_MODEL_PATH: /app/backend/models/essentia/nsynth_acoustic_electronic-discogs-effnet-1.pb
+      EMBEDDING_PROVIDER: local
+      LOCAL_EMBEDDING_MODEL: BAAI/bge-small-zh-v1.5
+      LOCAL_EMBEDDING_CACHE_DIR: /app/backend/models/fastembed
+      ENABLE_MPV: "false"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/db:/app/backend/db
+      - ./backend/music:/app/backend/music
+      - ./backend/models:/app/backend/models
+    restart: unless-stopped
