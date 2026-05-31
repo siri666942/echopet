@@ -27,6 +27,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # `BACKEND_DIR` 是 backend 目录的绝对路径。
 # 后面拼数据库路径、音乐路径，都基于它来算，避免"从不同目录启动命令时路径错乱"。
 BACKEND_DIR = Path(__file__).resolve().parent
+ESSENTIA_MODEL_DIR = BACKEND_DIR / "models" / "essentia"
 
 
 class Settings(BaseSettings):
@@ -61,15 +62,26 @@ class Settings(BaseSettings):
     openai_base_url: str | None = None
     openai_model: str = "gpt-4o-mini"
     embedding_model: str = "text-embedding-3-small"
+    embedding_provider: str = "local"
+    local_embedding_model: str = "BAAI/bge-small-zh-v1.5"
+    local_embedding_cache_dir: Path = BACKEND_DIR / "models" / "fastembed"
 
-    # Essentia TensorFlow 语义模型路径。
-    # 不配置这些模型时，新歌不会入库；因为音频特征层要求只使用真实 Essentia 分析。
-    essentia_genre_model_path: str | None = None
-    essentia_mood_model_path: str | None = None
-    essentia_danceability_model_path: str | None = None
-    essentia_arousal_valence_model_path: str | None = None
-    essentia_voice_instrumental_model_path: str | None = None
-    essentia_acoustic_electronic_model_path: str | None = None
+    # Essentia TensorFlow 模型目录。
+    # Docker 里这个目录会映射到宿主机 `backend/models/essentia/`。
+    # 模型文件很大，不提交 git，但下载一次后会保留在本地。
+    essentia_model_dir: Path = ESSENTIA_MODEL_DIR
+
+    # Essentia TensorFlow 模型路径。
+    # 这些默认值对应 `backend/scripts/download_essentia_models.py` 下载的官方模型文件。
+    # 如果模型文件不存在，新歌会入库失败；系统不会生成假特征。
+    essentia_msd_embedding_model_path: str = str(ESSENTIA_MODEL_DIR / "msd-musicnn-1.pb")
+    essentia_discogs_embedding_model_path: str = str(ESSENTIA_MODEL_DIR / "discogs-effnet-bs64-1.pb")
+    essentia_genre_model_path: str = str(ESSENTIA_MODEL_DIR / "genre_discogs400-discogs-effnet-1.pb")
+    essentia_mood_model_path: str = str(ESSENTIA_MODEL_DIR / "moods_mirex-msd-musicnn-1.pb")
+    essentia_danceability_model_path: str = str(ESSENTIA_MODEL_DIR / "danceability-msd-musicnn-1.pb")
+    essentia_arousal_valence_model_path: str = str(ESSENTIA_MODEL_DIR / "deam-msd-musicnn-2.pb")
+    essentia_voice_instrumental_model_path: str = str(ESSENTIA_MODEL_DIR / "voice_instrumental-msd-musicnn-1.pb")
+    essentia_acoustic_electronic_model_path: str = str(ESSENTIA_MODEL_DIR / "nsynth_acoustic_electronic-discogs-effnet-1.pb")
 
     # faster-whisper 配置。
     # 如果模型不可用，whisper_service 会返回空 transcript，不让服务崩。
@@ -110,6 +122,8 @@ def get_settings() -> Settings:
 
     # 确保 `backend/music/` 存在。
     settings.music_dir.mkdir(parents=True, exist_ok=True)
+    settings.essentia_model_dir.mkdir(parents=True, exist_ok=True)
+    settings.local_embedding_cache_dir.mkdir(parents=True, exist_ok=True)
 
     # 如果用的是 SQLite，就解析出 db 文件路径，确保父目录存在。
     db_path = _sqlite_path(settings.database_url)

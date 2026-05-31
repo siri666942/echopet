@@ -1,0 +1,8 @@
+# Essentia / Essentia TensorFlow 是真实音频特征提取依赖。
+# 它服务于 backend/services/audio_feature_service.py：
+# - 基础音频特征：duration、bpm、loudness、dynamic_complexity 等
+# - 高级语义特征：genre、mood、danceability、arousal/valence 等
+#
+# 注意：这个包在 Windows + Python 3.11 下经常没有可用 PyPI wheel。
+# 所以它不放进主 requirements.txt 阻塞 FastAPI 服务安装，但真实歌曲入库必须安装它。
+essentia-tensorflow==2.1b6.dev1110
