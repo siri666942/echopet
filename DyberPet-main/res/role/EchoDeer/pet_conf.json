@@ -25,17 +25,6 @@
       ]
     },
     {
-      "name": "blink",
-      "act_list": [
-        "blink"
-      ],
-      "act_prob": 0.06,
-      "act_type": [
-        2,
-        0
-      ]
-    },
-    {
       "name": "lazy",
       "act_list": [
         "lazy"
