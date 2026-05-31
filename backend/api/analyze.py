@@ -11,6 +11,11 @@ from backend.models.database import get_db
 from backend.models.schemas import AnalyzeRequest, AnalyzeResponse, EmotionResult
 from backend.services import intent_service, player_service, playlist_service, recommender
 from backend.services.embedding_service import EmbeddingUnavailableError
+from backend.services.keyboard_context_service import (
+    aggregate_keyboard_features,
+    features_from_legacy_context,
+    infer_keyboard_state,
+)
 from backend.services.memory_service import save_memory
 from backend.services.play_session_service import create_play_session
 from backend.services.profile_service import get_user_profile
@@ -23,9 +28,29 @@ router = APIRouter(prefix="/api", tags=["analyze"])
 @router.post("/analyze", response_model=AnalyzeResponse)
 async def analyze(req: AnalyzeRequest, db: Session = Depends(get_db)) -> AnalyzeResponse:
     profile = get_user_profile(db)
+    keyboard_features = (
+        aggregate_keyboard_features(req.keyboard_events)
+        if req.keyboard_events is not None
+        else features_from_legacy_context(req.context)
+    )
+    keyboard_state = (
+        req.keyboard_state.model_dump()
+        if req.keyboard_events is None and req.keyboard_state is not None
+        else infer_keyboard_state(keyboard_features, profile.get("keyboard_baseline"))
+    )
+    context = req.context
+    if req.keyboard_events is not None:
+        context = req.context.model_copy(
+            update={
+                "kpm": keyboard_features["kpm"],
+                "backspace_ratio": keyboard_features["backspace_ratio"],
+            }
+        )
+
     intent = await intent_service.build_music_intent(
         text=req.text,
-        context=req.context,
+        context=context,
+        keyboard_state=keyboard_state,
         user_profile=profile,
     )
 
@@ -33,7 +58,7 @@ async def analyze(req: AnalyzeRequest, db: Session = Depends(get_db)) -> Analyze
         playlist = recommender.recommend_playlist(
             db=db,
             retrieval_query=intent["retrieval_query"],
-            context=req.context,
+            context=context,
             user_profile=profile,
             top_k=5,
         )
@@ -55,7 +80,9 @@ async def analyze(req: AnalyzeRequest, db: Session = Depends(get_db)) -> Analyze
         db=db,
         user_text=req.text,
         retrieval_query=intent["retrieval_query"],
-        context=req.context,
+        context=context,
+        keyboard_features=keyboard_features,
+        keyboard_state=keyboard_state,
         user_profile_snapshot=profile,
         song_id=song.id,
         playlist=playlist,
@@ -63,7 +90,7 @@ async def analyze(req: AnalyzeRequest, db: Session = Depends(get_db)) -> Analyze
     player_status = player_service.play(song.file_path, song.id, song.title, song.artist)
 
     emotion = EmotionResult(**intent["emotion_compat"])
-    save_memory(db, req.context, emotion, song.id)
+    save_memory(db, context, emotion, song.id)
 
     return AnalyzeResponse(
         transcript=req.text.strip(),

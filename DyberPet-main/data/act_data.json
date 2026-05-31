@@ -100,6 +100,28 @@
                 2,
                 0
             ]
+        },
+        "lazy":{
+            "act_type":"random_act",
+            "special_act":false,
+            "unlocked":true,
+            "in_playlist":true,
+            "act_prob":0.035,
+            "status_type":[
+                2,
+                0
+            ]
+        },
+        "sad":{
+            "act_type":"random_act",
+            "special_act":false,
+            "unlocked":true,
+            "in_playlist":true,
+            "act_prob":0.025,
+            "status_type":[
+                2,
+                0
+            ]
         }
     }
 }

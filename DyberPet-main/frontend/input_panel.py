@@ -23,6 +23,8 @@ class InputPanel(QFrame):
     submit_requested = Signal(str, str)
     mock_state_requested = Signal(str)
     player_event_requested = Signal(str, float, str)
+    pause_requested = Signal()
+    skip_requested = Signal()
     record_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None):
@@ -221,6 +223,7 @@ class InputPanel(QFrame):
         rec_header = QHBoxLayout()
         self.voice_button = QPushButton()
         self.voice_button.setObjectName("RecordBtn")
+        self.voice_button.setText("VOICE")
         self.voice_button.setFixedSize(76, 76)
         rec_label = QLabel("REC")
         rec_label.setObjectName("RecLabel")
@@ -252,6 +255,16 @@ class InputPanel(QFrame):
         record_layout.addLayout(rec_header)
         record_layout.addWidget(self.voice_button, alignment=Qt.AlignHCenter)
         record_layout.addWidget(press_label)
+        transport_row = QHBoxLayout()
+        transport_row.setSpacing(8)
+        self.pause_button = QPushButton("[ PAUSE ]")
+        self.skip_button = QPushButton("[ SKIP ]")
+        for btn in (self.pause_button, self.skip_button):
+            btn.setObjectName("TransportBtn")
+            btn.setMinimumHeight(34)
+            btn.setEnabled(False)
+            transport_row.addWidget(btn)
+        record_layout.addLayout(transport_row)
         record_layout.addSpacing(6)
         record_layout.addWidget(level_title, alignment=Qt.AlignLeft)
         record_layout.addLayout(level_row)
@@ -349,26 +362,6 @@ class InputPanel(QFrame):
         
         lcd_layout.addWidget(self.lcd_screen)
 
-        # Feedback Buttons (Physical style)
-        feedback_row = QHBoxLayout()
-        self.like_button = QPushButton("[ KEEP ]")
-        self.dislike_button = QPushButton("[ SKIP ]")
-        self.energy_button = QPushButton("[ BOOST ]")
-        for btn in (self.like_button, self.dislike_button, self.energy_button):
-            btn.setObjectName("FeedbackBtn")
-            btn.setEnabled(False)
-            feedback_row.addWidget(btn)
-            
-        lcd_layout.addLayout(feedback_row)
-        action_row = QHBoxLayout()
-        self.submit_button = QPushButton("[ SUBMIT ]")
-        self.submit_button.setObjectName("ActionBtn")
-        self.clear_button = QPushButton("[ CLEAR ]")
-        self.clear_button.setObjectName("ActionBtn")
-        action_row.addWidget(self.submit_button)
-        action_row.addWidget(self.clear_button)
-        action_row.addStretch()
-        lcd_layout.addLayout(action_row)
         bottom_layout.addWidget(lcd_panel, stretch=1)
 
         casing_layout.addWidget(bottom_container)
@@ -378,38 +371,12 @@ class InputPanel(QFrame):
         self.nameplate.setAlignment(Qt.AlignLeft)
         casing_layout.addWidget(self.nameplate)
 
-        # --- Debug Tools Toggle ---
-        self.debug_toggle_button = QPushButton("SHOW DEBUG TOOLS")
-        self.debug_toggle_button.setObjectName("DebugToggleBtn")
-        self.debug_toggle_button.setCheckable(True)
-        self.debug_toggle_button.setChecked(False)
-        casing_layout.addWidget(self.debug_toggle_button, alignment=Qt.AlignRight)
-
-        self.debug_widget = QWidget()
-        debug_layout = QVBoxLayout(self.debug_widget)
-        debug_layout.setContentsMargins(0, 0, 0, 0)
-        mock_grid = QGridLayout()
-        mock_states = [("待机", "idle"), ("专注", "focus"), ("疲惫", "tired"), ("烦躁", "frustrated"), ("低落", "sad")]
-        for index, (label, state_name) in enumerate(mock_states):
-            btn = QPushButton(label)
-            btn.setObjectName("ActionBtn")
-            btn.clicked.connect(lambda _checked=False, s=state_name: self.mock_state_requested.emit(s))
-            mock_grid.addWidget(btn, index // 3, index % 3)
-        debug_layout.addLayout(mock_grid)
-        casing_layout.addWidget(self.debug_widget)
-        self.debug_widget.hide()
-
         # Connect signals
-        self.submit_button.clicked.connect(self._emit_submit)
-        self.clear_button.clicked.connect(self.editor.clear)
         self.min_button.clicked.connect(self.showMinimized)
         self.close_button.clicked.connect(self.hide)
         self.voice_button.clicked.connect(self.record_requested.emit)
-        self.like_button.clicked.connect(lambda: self._emit_player_event(0.9, "finished"))
-        self.dislike_button.clicked.connect(lambda: self._emit_player_event(0.1, "skipped"))
-        self.energy_button.setEnabled(False)
-        self.energy_button.setToolTip("新版后端暂时没有显式 BOOST 接口，所以这里先禁用。")
-        self.debug_toggle_button.toggled.connect(self.set_debug_tools_visible)
+        self.pause_button.clicked.connect(self.pause_requested.emit)
+        self.skip_button.clicked.connect(self.skip_requested.emit)
         for widget in (
             self,
             self.casing,
@@ -589,22 +556,31 @@ class InputPanel(QFrame):
                 background-color: #D32F2F;
                 border-radius: 38px;
                 border: 4px solid #8B0000;
+                color: #FFF6E8;
+                font-family: "Consolas", "Courier New", monospace;
+                font-size: 12px;
+                font-weight: bold;
             }
             QPushButton#RecordBtn:hover { background-color: #FF4500; }
             QPushButton#RecordBtn:pressed { background-color: #8B0000; border: 4px solid #600000; }
+            QPushButton#RecordBtn[recording="true"] {
+                background-color: #FF1F1F;
+                border: 4px solid #FFB000;
+                color: #FFFFFF;
+            }
             
-            QPushButton#ActionBtn, QPushButton#DebugToggleBtn {
+            QPushButton#ActionBtn, QPushButton#DebugToggleBtn, QPushButton#TransportBtn {
                 background-color: #DCD9D0;
                 border: 2px solid #B5B2A5;
                 border-radius: 8px;
-                padding: 8px 16px;
+                padding: 8px 10px;
                 font-family: "Consolas", "Courier New", monospace;
                 font-weight: bold;
                 color: #4A4843;
                 border-bottom: 4px solid #A3A093;
             }
-            QPushButton#ActionBtn:hover { background-color: #C4C1B3; }
-            QPushButton#ActionBtn:pressed { 
+            QPushButton#ActionBtn:hover, QPushButton#TransportBtn:hover { background-color: #C4C1B3; }
+            QPushButton#ActionBtn:pressed, QPushButton#TransportBtn:pressed { 
                 background-color: #A3A093; 
                 border-bottom: 2px solid #A3A093;
                 margin-top: 2px;
@@ -700,8 +676,9 @@ class InputPanel(QFrame):
         self.player_event_requested.emit(self._current_session_id, completion_rate, ended_reason)
 
     def set_busy(self, busy: bool, message: str = "") -> None:
-        self.submit_button.setEnabled(not busy)
-        self.clear_button.setEnabled(not busy)
+        has_track = bool(self._current_track_id)
+        self.pause_button.setEnabled(has_track)
+        self.skip_button.setEnabled(has_track and not busy)
         self.voice_button.setEnabled(not busy)
         if message:
             self.show_status(message)
@@ -724,8 +701,7 @@ class InputPanel(QFrame):
         return super().eventFilter(watched, event)
 
     def set_debug_tools_visible(self, visible: bool) -> None:
-        self.debug_widget.setVisible(visible)
-        self.debug_toggle_button.setText("HIDE DEBUG TOOLS" if visible else "SHOW DEBUG TOOLS")
+        pass
 
     def set_transcript(self, text: str) -> None:
         current = self.editor.toPlainText().strip()
@@ -735,18 +711,19 @@ class InputPanel(QFrame):
             self.editor.setPlainText(text)
 
     def set_recording(self, is_recording: bool) -> None:
+        self.voice_button.setProperty("recording", is_recording)
+        self.voice_button.style().unpolish(self.voice_button)
+        self.voice_button.style().polish(self.voice_button)
         if is_recording:
-            self.show_status("RECORDING...")
-            self.voice_button.setStyleSheet("""
-                QPushButton#RecordBtn {
-                    background-color: #FF0000;
-                    border-radius: 35px;
-                    border: 4px solid #8B0000;
-                }
-            """)
+            self.voice_button.setText("STOP")
+            self.rec_dot.setText("REC")
+            self.rec_info.setText("LISTENING\nCTRL+ALT+3 TO STOP")
+            self.show_status("RECORDING... SPEAK NOW")
         else:
+            self.voice_button.setText("VOICE")
+            self.rec_dot.setText("●")
+            self.rec_info.setText("AUTO MIC\nNOISE FILTER")
             self.show_status("READY")
-            self.voice_button.setStyleSheet("") # Reset to default
 
     def show_agent_result(self, mapped_result: dict) -> None:
         recommendation = mapped_result.get("recommendation") or {}
@@ -771,10 +748,8 @@ class InputPanel(QFrame):
             self.show_status("MODE: ONLINE")
 
         has_track = bool(self._current_track_id)
-        has_session = bool(self._current_session_id)
-        for button in (self.like_button, self.dislike_button):
-            button.setEnabled(has_track and has_session)
-        self.energy_button.setEnabled(False)
+        self.pause_button.setEnabled(has_track)
+        self.skip_button.setEnabled(has_track)
             
         import random
         match_score = random.randint(85, 99) if has_track else 0

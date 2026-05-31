@@ -77,6 +77,38 @@ def play(file_path: str, track_id: str, title: str, artist: str) -> str:
     return _status
 
 
+def toggle_pause() -> str:
+    """Toggle playback pause state."""
+
+    global _status
+
+    if _status == "playing":
+        if settings.enable_mpv:
+            try:
+                player = _get_player()
+                if player is not None:
+                    player.pause = True
+            except Exception:
+                _status = "error"
+                return _status
+        _status = "paused"
+        return _status
+
+    if _status == "paused":
+        if settings.enable_mpv:
+            try:
+                player = _get_player()
+                if player is not None:
+                    player.pause = False
+            except Exception:
+                _status = "error"
+                return _status
+        _status = "playing"
+        return _status
+
+    return _status
+
+
 def get_status() -> dict:
     """返回当前播放器状态。
 

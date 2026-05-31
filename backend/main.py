@@ -22,9 +22,11 @@
    - 这里统一把它们接到 FastAPI 应用上。
 """
 
+import logging
+import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 # 这些 import 是"路由模块"。
@@ -34,6 +36,37 @@ from backend.api import analyze, context, memory, music, player, transcribe
 from backend.config import settings
 from backend.models.database import SessionLocal, init_db
 from backend.services.music_service import initialize_library
+
+
+def configure_logging() -> None:
+    """配置后端日志格式，让每一行日志都带上日期和具体时间。
+
+    你现在看到的那种：
+
+        INFO: 127.0.0.1:xxxx - "GET /api/xxx HTTP/1.1" 200 OK
+
+    是 Uvicorn 自己的默认访问日志。它能告诉你"谁请求了什么接口"，
+    但是默认不一定显示"这个请求发生在几点几分几秒"。
+
+    这里做的事情很简单：
+
+    - `asctime`：打印日志发生时间。
+    - `levelname`：打印 INFO / WARNING / ERROR 这种日志级别。
+    - `name`：打印日志来源，比如 `echopet.request`。
+    - `message`：打印真正的日志内容。
+
+    后面下面那个 `log_requests` 中间件会使用这个格式输出请求日志。
+    """
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+
+configure_logging()
+request_logger = logging.getLogger("echopet.request")
 
 
 @asynccontextmanager
@@ -87,6 +120,38 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """记录每一次 HTTP 请求，并且把时间精确到秒。
+
+    这个函数是 FastAPI 的"中间件"：
+
+    - 前端请求后端时，请求会先经过这里。
+    - `call_next(request)` 会把请求交给真正的 API 处理函数。
+    - API 处理完以后，响应又回到这里。
+    - 于是我们就能记录：请求方法、接口路径、状态码、耗时。
+
+    打印出来大概长这样：
+
+        2026-05-31 11:20:15 INFO [echopet.request] GET /api/context -> 200 12.34ms
+
+    这样你看 Docker 或终端日志时，就能知道请求到底是什么时候发生的。
+    """
+
+    started_at = time.perf_counter()
+    response = await call_next(request)
+    duration_ms = (time.perf_counter() - started_at) * 1000
+
+    request_logger.info(
+        "%s %s -> %s %.2fms",
+        request.method,
+        request.url.path,
+        response.status_code,
+        duration_ms,
+    )
+    return response
 
 # 把各个路由模块接到主 app 上。
 # 这些 router 自己已经带了 prefix="/api"。

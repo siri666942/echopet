@@ -50,3 +50,32 @@ def test_player_event_updates_session_and_song(client, db_session, monkeypatch):
     assert song.play_count == 1
     assert song.skip_count == 1
     assert song.avg_completion_rate == 0.1
+
+
+def test_player_skip_moves_to_next_playlist_song(client, monkeypatch):
+    monkeypatch.setattr("backend.services.recommender.embed_text", lambda text: [1.0, 0.0, 0.0])
+    analyze_response = client.post(
+        "/api/analyze",
+        json={
+            "text": "我 debug 一天了，有点烦",
+            "input_source": "text",
+            "context": {
+                "hour": 23,
+                "active_app": "VSCode",
+                "kpm": 120,
+                "backspace_ratio": 0.2,
+            },
+        },
+    )
+    assert analyze_response.status_code == 200
+
+    response = client.post("/api/player/skip")
+
+    assert response.status_code == 200
+    assert response.json()["track_id"] == "s002"
+
+
+def test_player_skip_without_next_song_returns_404(client):
+    response = client.post("/api/player/skip")
+
+    assert response.status_code == 404

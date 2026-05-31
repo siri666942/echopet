@@ -9,7 +9,7 @@ from backend.models.schemas import (
     PlayerEventResponse,
     PlayerStatusResponse,
 )
-from backend.services import player_service
+from backend.services import player_service, playlist_service
 from backend.services.play_session_service import record_player_event
 
 
@@ -18,6 +18,21 @@ router = APIRouter(prefix="/api", tags=["player"])
 
 @router.get("/player/status", response_model=PlayerStatusResponse)
 async def player_status() -> PlayerStatusResponse:
+    return PlayerStatusResponse(**player_service.get_status())
+
+
+@router.post("/player/pause", response_model=PlayerStatusResponse)
+async def player_pause() -> PlayerStatusResponse:
+    player_service.toggle_pause()
+    return PlayerStatusResponse(**player_service.get_status())
+
+
+@router.post("/player/skip", response_model=PlayerStatusResponse)
+async def player_skip() -> PlayerStatusResponse:
+    song = playlist_service.get_next_song()
+    if song is None:
+        raise HTTPException(status_code=404, detail="no next song in playlist")
+    player_service.play(song.file_path, song.id, song.title, song.artist)
     return PlayerStatusResponse(**player_service.get_status())
 
 

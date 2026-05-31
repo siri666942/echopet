@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from typing import Dict, Optional
+import socket
 from urllib import error, request
 
 
@@ -40,7 +41,12 @@ class AgentClient:
             with request.urlopen(req, timeout=request_timeout) as response:
                 raw = response.read().decode("utf-8")
                 return json.loads(raw) if raw else {}
-        except (error.URLError, error.HTTPError, TimeoutError, json.JSONDecodeError) as exc:
+        except error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="ignore")
+            raise AgentClientError(f"HTTP {exc.code}: {detail or exc.reason}") from exc
+        except (TimeoutError, socket.timeout) as exc:
+            raise AgentClientError(f"请求超时: {url}") from exc
+        except (error.URLError, json.JSONDecodeError) as exc:
             raise AgentClientError(str(exc)) from exc
 
     def get_context(self, timeout: Optional[float] = None) -> Dict:
@@ -51,6 +57,7 @@ class AgentClient:
         text: str,
         input_source: str = "text",
         context: Optional[Dict] = None,
+        keyboard_events: Optional[Dict] = None,
         timeout: Optional[float] = None,
     ) -> Dict:
         if context is None:
@@ -60,12 +67,24 @@ class AgentClient:
             "input_source": input_source,
             "context": context,
         }
+        if keyboard_events is not None:
+            payload["keyboard_events"] = keyboard_events
         return self._request_json("POST", "/api/analyze", payload, timeout=timeout)
 
-    def submit_text(self, text: str, input_source: str = "text") -> Dict:
+    def submit_text(
+        self,
+        text: str,
+        input_source: str = "text",
+        keyboard_events: Optional[Dict] = None,
+    ) -> Dict:
         try:
             context = self.get_context()
-            result = self.analyze_text(text, input_source=input_source, context=context)
+            result = self.analyze_text(
+                text,
+                input_source=input_source,
+                context=context,
+                keyboard_events=keyboard_events,
+            )
             result["_mode"] = "api"
             self._cache_result(result)
             return result
@@ -89,6 +108,22 @@ class AgentClient:
         except AgentClientError:
             pass
         return self.last_player_status.copy()
+
+    def toggle_pause(self) -> Dict:
+        try:
+            payload = self._request_json("POST", "/api/player/pause")
+            self.last_player_status = normalize_player_status_payload(payload)
+            return self.last_player_status.copy()
+        except AgentClientError as exc:
+            return {"status": "error", "message": str(exc)}
+
+    def skip_track(self) -> Dict:
+        try:
+            payload = self._request_json("POST", "/api/player/skip")
+            self.last_player_status = normalize_player_status_payload(payload)
+            return self.last_player_status.copy()
+        except AgentClientError as exc:
+            return {"status": "error", "message": str(exc)}
 
     def send_player_event(
         self,
@@ -118,6 +153,7 @@ class AgentClient:
             "POST",
             "/api/transcribe",
             {"audio": audio_b64, "audio_format": audio_format},
+            timeout=120,
         )
 
     def build_mock_result(self, text: str = "", forced_state: Optional[str] = None) -> Dict:
@@ -210,3 +246,14 @@ class AgentClient:
             if any(keyword in lowered for keyword in keywords):
                 return state
         return "idle"
+
+
+def normalize_player_status_payload(payload: Dict | None) -> Dict:
+    payload = payload or {}
+    return {
+        "player": payload.get("player", "mpv"),
+        "status": payload.get("status", "idle"),
+        "track_id": payload.get("track_id", ""),
+        "title": payload.get("title", ""),
+        "artist": payload.get("artist", ""),
+    }

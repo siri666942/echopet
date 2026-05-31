@@ -6,11 +6,12 @@ from backend.config import settings
 from backend.models.schemas import ContextModel, EmotionResult
 
 
-SYSTEM_PROMPT = """你把用户文本和上下文翻译成音乐检索语言。
+SYSTEM_PROMPT = """你把用户文本、环境上下文、键盘状态弱信号翻译成音乐检索语言。
+键盘状态只代表打字节奏、专注、压力、疲劳和稳定性，不是情绪识别器；不要根据键盘状态硬判“愤怒/难过/开心”。
 只输出 JSON：
 {
   "retrieval_query": "中等能量、节奏稳定、有支撑感、不吵、不太悲伤的器乐音乐",
-  "current_state": "idle|focus|tired|frustrated|sad",
+  "current_state": "idle|focus|focused_stressed|tired|frustrated|sad",
   "bubble_text": "短句",
   "assistant_reply": "短句",
   "emotion_compat": {"emotion":"frustrated|sad|happy|focused|tired|anxious|calm","energy":0.0,"need":"comfort|focus|energy|relaxation|companionship"}
@@ -18,16 +19,26 @@ SYSTEM_PROMPT = """你把用户文本和上下文翻译成音乐检索语言。
 retrieval_query 只能描述音乐特征，不要写隐私、故事或“适合某人”。"""
 
 
-async def build_music_intent(text: str, context: ContextModel, user_profile: dict) -> dict:
+async def build_music_intent(
+    text: str,
+    context: ContextModel,
+    keyboard_state: dict | None,
+    user_profile: dict,
+) -> dict:
     if settings.openai_api_key:
         try:
-            return _build_with_llm(text, context, user_profile)
+            return _build_with_llm(text, context, keyboard_state, user_profile)
         except Exception:
             pass
-    return _fallback_intent(text, context)
+    return _fallback_intent(text, context, keyboard_state)
 
 
-def _build_with_llm(text: str, context: ContextModel, user_profile: dict) -> dict:
+def _build_with_llm(
+    text: str,
+    context: ContextModel,
+    keyboard_state: dict | None,
+    user_profile: dict,
+) -> dict:
     from openai import OpenAI
 
     client = OpenAI(api_key=settings.openai_api_key, base_url=settings.openai_base_url)
@@ -41,6 +52,7 @@ def _build_with_llm(text: str, context: ContextModel, user_profile: dict) -> dic
                     {
                         "text": text,
                         "context": context.model_dump(),
+                        "keyboard_state": keyboard_state or {},
                         "user_profile": user_profile,
                     },
                     ensure_ascii=False,
@@ -55,8 +67,21 @@ def _build_with_llm(text: str, context: ContextModel, user_profile: dict) -> dic
     return payload
 
 
-def _fallback_intent(text: str, context: ContextModel) -> dict:
+def _fallback_intent(text: str, context: ContextModel, keyboard_state: dict | None = None) -> dict:
     lowered = text.lower()
+    keyboard_state = keyboard_state or {}
+    if (
+        keyboard_state.get("focus", 0.0) >= 0.7
+        and keyboard_state.get("stress", 0.0) >= 0.6
+        and not any(word in lowered for word in ["烦", "崩", "debug", "bug", "红温"])
+    ):
+        return {
+            "retrieval_query": "中等能量、节奏稳定、有支撑感、不吵、不太悲伤、适合高强度专注输出的器乐音乐",
+            "current_state": "focused_stressed",
+            "bubble_text": "你现在像是在高强度输出，我先放点稳住节奏的。",
+            "assistant_reply": "我给你切一首有支撑感但不打扰的。",
+            "emotion_compat": {"emotion": "focused", "energy": 0.55, "need": "focus"},
+        }
     if any(word in lowered for word in ["烦", "崩", "debug", "bug", "红温"]):
         return {
             "retrieval_query": "中等偏低能量、节奏稳定、有支撑感、不吵、不太悲伤的器乐音乐",

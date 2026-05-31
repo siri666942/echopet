@@ -30,7 +30,10 @@ from DyberPet.custom_widgets import RoundBarBase, LevelBadge
 from DyberPet.bubbleManager import BubbleManager
 from frontend.agent_client import AgentClient
 from frontend.audio_recorder import AudioRecorder
+from frontend.hotkey_listener import EchoPetHotkeyListener
 from frontend.input_panel import InputPanel
+from frontend.keyboard_tracker import KeyboardTracker
+from frontend.local_audio_player import LocalAudioPlayer
 from frontend.player_status_poller import PlayerStatusPoller
 from frontend.state_mapper import map_agent_result, pick_action_for_state
 from frontend.whisper_adapter import WhisperAdapter
@@ -394,8 +397,12 @@ class PetWidget(QWidget):
     refresh_acts = Signal(name='refresh_acts')
     agent_result_ready = Signal(dict, name='agent_result_ready')
     player_event_result_ready = Signal(str, name='player_event_result_ready')
+    player_control_result_ready = Signal(dict, str, name='player_control_result_ready')
     transcript_ready = Signal(str, name='transcript_ready')
     transcript_failed = Signal(str, name='transcript_failed')
+    hotkey_pause_requested = Signal(name='hotkey_pause_requested')
+    hotkey_skip_requested = Signal(name='hotkey_skip_requested')
+    hotkey_voice_requested = Signal(name='hotkey_voice_requested')
 
     def __init__(self, parent=None, curr_pet_name=None, pets=(), screens=[]):
         """
@@ -418,8 +425,14 @@ class PetWidget(QWidget):
         self.input_panel = None
         self.whisper_adapter = None
         self.audio_recorder = None
+        self.hotkey_listener = None
+        self.keyboard_tracker = None
+        self.local_audio_player = None
         self.player_status_poller = None
         self.current_track = {}
+        self.current_playlist = []
+        self.current_playlist_index = -1
+        self.current_session_id = ""
         self.current_agent_state = "idle"
         self.current_player_status = "idle"
         self.current_pet_status_text = "待命中"
@@ -1472,15 +1485,25 @@ class PetWidget(QWidget):
         self.agent_client = AgentClient()
         self.whisper_adapter = WhisperAdapter(self.agent_client)
         self.audio_recorder = AudioRecorder(self)
+        self.keyboard_tracker = KeyboardTracker()
+        self.keyboard_tracker.start()
+        self.local_audio_player = LocalAudioPlayer(Path(__file__).resolve().parents[2], self)
+        self.local_audio_player.status_changed.connect(self.update_player_status)
         self.input_panel = InputPanel()
         self.input_panel.submit_requested.connect(self.submit_user_text)
         self.input_panel.mock_state_requested.connect(self.apply_mock_state)
         self.input_panel.player_event_requested.connect(self.send_player_event)
+        self.input_panel.pause_requested.connect(self.toggle_pause_playback)
+        self.input_panel.skip_requested.connect(self.skip_track)
         self.input_panel.record_requested.connect(self.toggle_recording)
         self.agent_result_ready.connect(self._handle_agent_result_ready)
         self.player_event_result_ready.connect(self._handle_player_event_result_ready)
+        self.player_control_result_ready.connect(self._handle_player_control_result_ready)
         self.transcript_ready.connect(self._handle_transcript_ready)
         self.transcript_failed.connect(self._handle_transcript_failed)
+        self.hotkey_pause_requested.connect(self.toggle_pause_playback)
+        self.hotkey_skip_requested.connect(self.skip_track)
+        self.hotkey_voice_requested.connect(self.toggle_recording)
 
         self.audio_recorder.recording_started.connect(self._handle_recording_started)
         self.audio_recorder.recording_finished.connect(self._handle_recording_finished)
@@ -1488,6 +1511,12 @@ class PetWidget(QWidget):
 
         self.player_status_poller = PlayerStatusPoller(self.agent_client, parent=self)
         self.player_status_poller.status_updated.connect(self.update_player_status)
+        self.hotkey_listener = EchoPetHotkeyListener(
+            on_pause=self.hotkey_pause_requested.emit,
+            on_skip=self.hotkey_skip_requested.emit,
+            on_voice=self.hotkey_voice_requested.emit,
+        )
+        self.hotkey_listener.start()
 
         self.move_sig.connect(lambda _x, _y: self._sync_input_panel_position())
 
@@ -1537,13 +1566,29 @@ class PetWidget(QWidget):
         self.open_input_panel()
 
     def _submit_user_text_async(self, text, input_source):
-        result = self.agent_client.submit_text(text, input_source=input_source)
+        keyboard_events = None
+        if self.keyboard_tracker:
+            keyboard_events = self.keyboard_tracker.snapshot(window_seconds=60)
+        result = self.agent_client.submit_text(
+            text,
+            input_source=input_source,
+            keyboard_events=keyboard_events,
+        )
         self.agent_result_ready.emit(result)
 
     def _handle_agent_result_ready(self, result):
         self.apply_agent_result(result)
         if self.input_panel:
             self.input_panel.set_busy(False)
+        if result.get("_mode") == "mock" and result.get("_error"):
+            self.register_bubbleText(
+                {
+                    "bubble_type": "agent_error",
+                    "message": f"后端推荐失败: {result.get('_error')}",
+                    "icon": None,
+                    "timeout": 6,
+                }
+            )
 
     def _handle_recording_started(self):
         self.current_pet_status_text = "正在听你说话"
@@ -1575,7 +1620,8 @@ class PetWidget(QWidget):
             result = self.whisper_adapter.transcribe_audio_bytes(audio_bytes, audio_format=audio_format)
             transcript = result.get("transcript", "").strip()
             if not transcript:
-                raise RuntimeError("转写结果为空")
+                source = result.get("source", "unknown")
+                raise RuntimeError(f"后端转写返回为空，source={source}")
             self.transcript_ready.emit(transcript)
         except Exception as exc:
             self.transcript_failed.emit(str(exc))
@@ -1586,15 +1632,16 @@ class PetWidget(QWidget):
         if self.input_panel:
             self.input_panel.set_busy(False)
             self.input_panel.set_transcript(transcript)
-            self.input_panel.show_status("提示: 录音已转写，请确认文本后再提交")
+            self.input_panel.show_status("提示: 录音已转写，正在为你找歌")
         self.register_bubbleText(
             {
                 "bubble_type": "agent_transcript",
-                "message": self.tr("录音已转成文字，确认后再发给我吧。"),
+                "message": self.tr("录音已转成文字，我直接帮你找歌。"),
                 "icon": None,
                 "timeout": 4,
             }
         )
+        self.submit_user_text(transcript, input_source="faster_whisper")
 
     def _handle_transcript_failed(self, message):
         self.current_pet_status_text = "转写失败"
@@ -1616,7 +1663,10 @@ class PetWidget(QWidget):
         mapped_result = map_agent_result(result)
         self.current_agent_state = mapped_result["pet_state"]
         self.current_track = mapped_result.get("recommendation") or {}
-        self.current_player_status = mapped_result.get("player_status", {}).get("status", "idle")
+        self.current_playlist = mapped_result.get("playlist") or []
+        self.current_playlist_index = 0 if self.current_playlist else -1
+        self.current_session_id = mapped_result.get("session_id", "")
+        self.current_player_status = "loading"
         if self.current_player_status == "loading":
             self.current_pet_status_text = "正在帮你准备歌曲"
         else:
@@ -1636,12 +1686,22 @@ class PetWidget(QWidget):
         if self.input_panel:
             self.input_panel.show_agent_result(mapped_result)
 
+        self._play_current_recommendation()
+
         recommendation = mapped_result.get("recommendation") or {}
         if recommendation.get("title"):
             message = self.tr("Ready: ") + recommendation.get("title", "")
             self.register_notification("system", message)
-        if mapped_result.get("debug_mode") == "api":
+        if mapped_result.get("debug_mode") == "api" and not self.local_audio_player:
             self.start_player_status_polling()
+
+    def _play_current_recommendation(self):
+        if not self.local_audio_player or not self.current_track:
+            return
+        if self.current_playlist:
+            self.local_audio_player.set_playlist(self.current_playlist, start_index=0)
+        status_payload = self.local_audio_player.play_track(self.current_track)
+        self.update_player_status(status_payload)
 
     def apply_pet_state(self, state_name):
         acts_config = settings.act_data.allAct_params.get(settings.petname, {})
@@ -1696,6 +1756,60 @@ class PetWidget(QWidget):
             args=(session_id, completion_rate, ended_reason),
             daemon=True,
         ).start()
+
+    def toggle_pause_playback(self):
+        threading.Thread(
+            target=self._toggle_pause_playback_async,
+            daemon=True,
+        ).start()
+
+    def _toggle_pause_playback_async(self):
+        if self.local_audio_player:
+            status_payload = self.local_audio_player.play_current_or_resume()
+        else:
+            status_payload = self.agent_client.toggle_pause()
+        self.player_control_result_ready.emit(status_payload, "pause")
+
+    def skip_track(self):
+        threading.Thread(
+            target=self._skip_track_async,
+            daemon=True,
+        ).start()
+
+    def _skip_track_async(self):
+        if self.current_session_id:
+            self.agent_client.send_player_event(
+                self.current_session_id,
+                completion_rate=0.1,
+                ended_reason="skipped",
+            )
+            self.current_session_id = ""
+        if self.local_audio_player:
+            status_payload = self.local_audio_player.skip()
+        else:
+            status_payload = self.agent_client.skip_track()
+        self.player_control_result_ready.emit(status_payload, "skip")
+
+    def _handle_player_control_result_ready(self, status_payload, action_name):
+        status = status_payload.get("status", "error")
+        if status == "error":
+            message = status_payload.get("message", "播放器控制失败")
+            if self.input_panel:
+                self.input_panel.show_status(f"提示: {message}")
+            self.register_bubbleText(
+                {
+                    "bubble_type": "agent_player_control_error",
+                    "message": message,
+                    "icon": None,
+                    "timeout": 4,
+                }
+            )
+            return
+
+        self.update_player_status(status_payload)
+        if self.input_panel:
+            label = "已切到下一首" if action_name == "skip" else self._friendly_player_status_label(status)
+            self.input_panel.show_status(f"提示: {label}")
 
     def _send_player_event_async(self, session_id, completion_rate, ended_reason):
         response = self.agent_client.send_player_event(session_id, completion_rate, ended_reason)
@@ -2048,6 +2162,10 @@ class PetWidget(QWidget):
         关闭窗口, 系统退出
         :return:
         """
+        if self.keyboard_tracker:
+            self.keyboard_tracker.stop()
+        if self.hotkey_listener:
+            self.hotkey_listener.stop()
         settings.pet_data.save_data()
         settings.pet_data.frozen()
         self.stop_thread('Animation')
