@@ -23,6 +23,7 @@
 """
 
 import logging
+import threading
 import time
 from contextlib import asynccontextmanager
 
@@ -36,6 +37,7 @@ from backend.api import analyze, context, memory, music, player, transcribe
 from backend.config import settings
 from backend.models.database import SessionLocal, init_db
 from backend.services.music_service import initialize_library
+from backend.services.whisper_service import warmup_model
 
 
 def configure_logging() -> None:
@@ -102,6 +104,9 @@ async def lifespan(app: FastAPI):
         # 数据库连接用完必须关掉。
         # 不关的话，在 Windows 上尤其容易出现文件被占用的问题。
         db.close()
+
+    # Whisper 模型较重，放后台预热，避免第一次录音请求卡住整个服务。
+    threading.Thread(target=warmup_model, daemon=True).start()
 
     # 到这里为止，服务启动准备完成，FastAPI 开始真正对外提供接口。
     yield

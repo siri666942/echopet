@@ -19,10 +19,12 @@
     - 前端仍然可以用文本输入继续走 /api/analyze
 """
 
+import asyncio
 import base64
 import binascii
 import os
 import tempfile
+import threading
 
 from fastapi import HTTPException
 
@@ -37,6 +39,7 @@ _model = None
 # 如果失败过，后续就不重复尝试，避免每次请求都卡很久。
 _model_failed = False
 _model_error_message = ""
+_model_lock = threading.Lock()
 
 
 async def transcribe(audio_base64: str, audio_format: str = "wav") -> dict:
@@ -66,7 +69,8 @@ async def transcribe(audio_base64: str, audio_format: str = "wav") -> dict:
     if not audio_bytes:
         raise HTTPException(status_code=400, detail="audio is empty")
 
-    model = _get_model()
+    # 模型加载和转写都比较重，放到后台线程，避免阻塞整个 uvicorn 进程。
+    model = await asyncio.to_thread(_get_model)
     if model is None:
         detail = _model_error_message or "faster-whisper unavailable"
         raise HTTPException(status_code=503, detail=f"transcribe backend unavailable: {detail}")
@@ -79,15 +83,10 @@ async def transcribe(audio_base64: str, audio_format: str = "wav") -> dict:
             temp_file.write(audio_bytes)
             temp_path = temp_file.name
 
-        segments, info = model.transcribe(temp_path, language="zh", beam_size=5)
-
-        # segments 是分段转写结果，把每一段文字拼起来。
-        transcript = " ".join(segment.text for segment in segments).strip()
-        if not transcript:
-            raise HTTPException(status_code=422, detail="transcript is empty, no speech detected")
+        transcript, language = await asyncio.to_thread(_transcribe_file, model, temp_path)
         return {
             "transcript": transcript,
-            "language": getattr(info, "language", "zh") or "zh",
+            "language": language,
             "source": "faster-whisper",
         }
     finally:
@@ -114,17 +113,41 @@ def _get_model():
     if _model_failed:
         return None
 
-    try:
-        from faster_whisper import WhisperModel
+    with _model_lock:
+        if _model is not None:
+            return _model
 
-        _model = WhisperModel(
-            settings.whisper_model,
-            device=settings.whisper_device,
-            compute_type=settings.whisper_compute_type,
-        )
-    except Exception as exc:
-        _model_failed = True
-        _model = None
-        _model_error_message = f"faster-whisper import or model init failed: {exc}"
+        if _model_failed:
+            return None
+
+        try:
+            from faster_whisper import WhisperModel
+
+            _model = WhisperModel(
+                settings.whisper_model,
+                device=settings.whisper_device,
+                compute_type=settings.whisper_compute_type,
+            )
+        except Exception as exc:
+            _model_failed = True
+            _model = None
+            _model_error_message = f"faster-whisper import or model init failed: {exc}"
 
     return _model
+
+
+def _transcribe_file(model, temp_path: str) -> tuple[str, str]:
+    segments, info = model.transcribe(temp_path, language="zh", beam_size=5)
+
+    # segments 是分段转写结果，把每一段文字拼起来。
+    transcript = " ".join(segment.text for segment in segments).strip()
+    if not transcript:
+        raise HTTPException(status_code=422, detail="transcript is empty, no speech detected")
+
+    return transcript, getattr(info, "language", "zh") or "zh"
+
+
+def warmup_model() -> None:
+    """启动后在后台预热转写模型，减少首次录音等待。"""
+
+    _get_model()

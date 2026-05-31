@@ -16,6 +16,8 @@
 
 from __future__ import annotations
 
+import time
+
 from backend.config import settings
 from backend.services import playlist_service
 
@@ -30,6 +32,8 @@ _status = "idle"
 # 当前歌曲信息。
 # 即使 mpv 播放失败，我们也保留这份信息，方便前端展示"刚才尝试播放哪首"。
 _current_track: dict[str, str] | None = None
+_last_play_started_at = 0.0
+_loading_grace_seconds = 2.0
 
 
 def play(file_path: str, track_id: str, title: str, artist: str) -> str:
@@ -52,10 +56,11 @@ def play(file_path: str, track_id: str, title: str, artist: str) -> str:
         当前播放器状态字符串。
     """
 
-    global _current_track, _status
+    global _current_track, _status, _last_play_started_at
 
     _current_track = {"track_id": track_id, "title": title, "artist": artist}
     _status = "loading"
+    _last_play_started_at = time.monotonic()
 
     # 如果 .env 里 ENABLE_MPV=false，就完全不尝试真实播放。
     # 这对没有 mpv 的开发环境很友好。
@@ -83,6 +88,8 @@ def toggle_pause() -> str:
     """Toggle playback pause state."""
 
     global _status
+
+    _refresh_status_from_player()
 
     if _status == "playing":
         if settings.enable_mpv:
@@ -124,6 +131,18 @@ def skip_to_next() -> dict:
     return get_status()
 
 
+def stop() -> dict:
+    """停止当前播放并把播放器状态清回 idle。"""
+
+    global _last_play_started_at
+
+    _clear_track()
+    _last_play_started_at = 0.0
+    playlist_service.reset_for_tests()
+    _stop_player()
+    return get_status()
+
+
 def get_status() -> dict:
     """返回当前播放器状态。
 
@@ -144,10 +163,11 @@ def get_status() -> dict:
 def reset_for_tests() -> None:
     """测试用：重置播放器内存状态。"""
 
-    global _current_track, _status, _player
+    global _current_track, _status, _player, _last_play_started_at
     _current_track = None
     _status = "idle"
     _player = None
+    _last_play_started_at = 0.0
 
 
 def _get_player():
@@ -205,6 +225,10 @@ def _refresh_status_from_player() -> None:
 
     if is_idle:
         if _current_track and _status in {"loading", "playing", "paused"}:
+            # mpv 刚收到 play 命令时，短时间内仍可能报告 idle。
+            # 这个窗口里不要误判成"当前歌曲播放完毕"，否则 skip 会把队列直接吃空。
+            if _status == "loading" and (time.monotonic() - _last_play_started_at) < _loading_grace_seconds:
+                return
             if playlist_service.has_next_song():
                 skip_to_next()
             else:

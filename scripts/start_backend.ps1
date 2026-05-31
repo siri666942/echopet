@@ -49,6 +49,14 @@ function Install-BackendDeps {
 }
 
 function Stop-OldBackend {
+    $staleBackends = Get-CimInstance Win32_Process | Where-Object {
+        (($_.Name -match "python") -or ($_.Name -match "uvicorn")) -and $_.CommandLine -like "*backend.main:app*"
+    }
+    foreach ($proc in $staleBackends) {
+        Write-Step "Stopping stale backend process pid=$($proc.ProcessId)..."
+        Stop-Process -Id $proc.ProcessId -Force
+    }
+
     if (-not (Test-Path $BackendPidFile)) {
         return
     }

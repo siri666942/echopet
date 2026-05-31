@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import socket
 import json
+import os
 from typing import Dict, Optional
 from urllib import error, parse, request
 
@@ -13,8 +14,9 @@ class AgentClientError(RuntimeError):
 
 
 class AgentClient:
-    def __init__(self, base_url: str = "http://localhost:8000", timeout: float = 5):
-        self.base_url = base_url.rstrip("/")
+    def __init__(self, base_url: str | None = None, timeout: float = 15):
+        resolved_base_url = base_url or os.environ.get("ECHOPET_BACKEND_URL") or "http://127.0.0.1:8000"
+        self.base_url = resolved_base_url.rstrip("/")
         self.timeout = timeout
         self.last_result: Dict = {}
         self.last_player_status: Dict = {
@@ -87,12 +89,13 @@ class AgentClient:
         keyboard_events: Optional[Dict] = None,
     ) -> Dict:
         try:
-            context = self.get_context(keyboard_events=keyboard_events)
+            context = self.get_context(keyboard_events=keyboard_events, timeout=10)
             result = self.analyze_text(
                 text,
                 input_source=input_source,
                 context=context,
                 keyboard_events=keyboard_events,
+                timeout=20,
             )
             result["_mode"] = "api"
             self._cache_result(result)
@@ -182,6 +185,13 @@ class AgentClient:
                 "need": "focus",
                 "emotion": "focused",
             },
+            "focused_stressed": {
+                "bubble": "先稳住高压节奏，我帮你把状态绷住但不再更紧。",
+                "reply": "你现在像是在高压输出，我先给你一首更稳、更克制的。",
+                "song": ("mock-focused-stressed", "Pressure Buffer", "EchoPet Demo"),
+                "need": "focus",
+                "emotion": "anxious",
+            },
             "tired": {
                 "bubble": "你有点累了，我放轻一点的。",
                 "reply": "我感觉你有点疲惫，先放一首更柔和的缓一缓。",
@@ -204,7 +214,7 @@ class AgentClient:
                 "emotion": "sad",
             },
         }
-        template = templates[state]
+        template = templates.get(state, templates["idle"])
         song_id, title, artist = template["song"]
         return {
             "transcript": text,

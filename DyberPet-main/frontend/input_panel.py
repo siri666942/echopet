@@ -18,6 +18,24 @@ from PySide6.QtWidgets import (
     QSizePolicy,
 )
 
+DEBUG_FORM_BUTTONS = [
+    ("普通", "idle"),
+    ("专注", "focus"),
+    ("高压", "focused_stressed"),
+    ("疲惫", "tired"),
+    ("烦躁", "frustrated"),
+    ("难过", "sad"),
+]
+
+STATE_LABELS = {
+    "idle": "普通",
+    "focus": "专注",
+    "focused_stressed": "高压",
+    "tired": "疲惫",
+    "frustrated": "烦躁",
+    "sad": "难过",
+}
+
 
 class InputPanel(QFrame):
     submit_requested = Signal(str, str)
@@ -65,7 +83,7 @@ class InputPanel(QFrame):
         self.setWindowFlags(Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setObjectName("EchoPetInputPanel")
-        self.resize(620, 590)
+        self.resize(620, 660)
 
         # Main container to simulate the physical plastic casing
         main_layout = QVBoxLayout(self)
@@ -287,6 +305,35 @@ class InputPanel(QFrame):
         self.status_label.setObjectName("StatusLed")
         casing_layout.addWidget(self.status_label, alignment=Qt.AlignHCenter)
 
+        self.debug_panel = QFrame()
+        self.debug_panel.setObjectName("DebugPanel")
+        debug_layout = QVBoxLayout(self.debug_panel)
+        debug_layout.setContentsMargins(12, 10, 12, 12)
+        debug_layout.setSpacing(8)
+
+        debug_header = QLabel("03 DEBUG FORMS ▼")
+        debug_header.setObjectName("LcdSmall")
+        debug_layout.addWidget(debug_header)
+
+        debug_grid = QGridLayout()
+        debug_grid.setContentsMargins(0, 0, 0, 0)
+        debug_grid.setHorizontalSpacing(8)
+        debug_grid.setVerticalSpacing(8)
+        self.debug_form_buttons: list[QPushButton] = []
+        for index, (label, state_name) in enumerate(DEBUG_FORM_BUTTONS):
+            button = QPushButton(f"[ {label} ]")
+            button.setObjectName("DebugFormBtn")
+            button.setMinimumHeight(38)
+            button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            button.clicked.connect(
+                lambda _checked=False, state_name=state_name: self.mock_state_requested.emit(state_name)
+            )
+            debug_grid.addWidget(button, index // 2, index % 2)
+            self.debug_form_buttons.append(button)
+        debug_grid.setColumnStretch(0, 1)
+        debug_grid.setColumnStretch(1, 1)
+        debug_layout.addLayout(debug_grid)
+
         # --- Bottom Section: Music Card (The "LCD / Player" Area) ---
         bottom_container = QFrame()
         bottom_container.setObjectName("BottomContainer")
@@ -372,6 +419,7 @@ class InputPanel(QFrame):
         bottom_layout.addWidget(lcd_panel, stretch=1)
 
         casing_layout.addWidget(bottom_container)
+        casing_layout.addWidget(self.debug_panel)
 
         self.nameplate = QLabel("ECHOPET WALKMAN INTERFACE")
         self.nameplate.setObjectName("Nameplate")
@@ -607,6 +655,11 @@ class InputPanel(QFrame):
                 border-radius: 10px;
                 border: 2px solid #8F887A;
             }
+            QFrame#DebugPanel {
+                background-color: #E3DECF;
+                border-radius: 10px;
+                border: 2px solid #8F887A;
+            }
             QFrame#MusicCardPanel, QFrame#PlayerPanel {
                 background-color: transparent;
             }
@@ -665,6 +718,23 @@ class InputPanel(QFrame):
                 margin-top: 2px;
             }
             QPushButton#FeedbackBtn:disabled { background-color: #E8E6DF; color: #A3A093; border-color: #D0CDBE; border-bottom: 2px solid #D0CDBE; margin-top: 2px; }
+            QPushButton#DebugFormBtn {
+                background-color: #DCD9D0;
+                border: 2px solid #B5B2A5;
+                border-radius: 8px;
+                padding: 10px 12px;
+                font-family: "Consolas", "Courier New", monospace;
+                font-size: 13px;
+                font-weight: bold;
+                color: #4A4843;
+                border-bottom: 4px solid #A3A093;
+            }
+            QPushButton#DebugFormBtn:hover { background-color: #C4C1B3; }
+            QPushButton#DebugFormBtn:pressed {
+                background-color: #A3A093;
+                border-bottom: 2px solid #A3A093;
+                margin-top: 2px;
+            }
             QLabel#Nameplate {
                 color: #6B6559;
                 font-family: "Consolas", "Courier New", monospace;
@@ -717,7 +787,7 @@ class InputPanel(QFrame):
         return super().eventFilter(watched, event)
 
     def set_debug_tools_visible(self, visible: bool) -> None:
-        pass
+        self.debug_panel.setVisible(visible)
 
     def set_transcript(self, text: str) -> None:
         current = self.editor.toPlainText().strip()
@@ -748,7 +818,9 @@ class InputPanel(QFrame):
         self._current_track_id = recommendation.get("id", "")
         self._current_session_id = mapped_result.get("session_id", "")
 
-        self.state_label.setText(f"STATE: {mapped_result.get('pet_state', 'idle').upper()}")
+        pet_state = mapped_result.get("pet_state", "idle")
+        state_label = STATE_LABELS.get(pet_state, "普通")
+        self.state_label.setText(f"STATE: {state_label}")
         if artist:
             self.track_label.setText(f"{track_title}\n{artist}")
         else:
