@@ -5,13 +5,13 @@
     "fixdragspeedy": 1.0,
     "usertag_dict": {
         "ChrisKitty": "",
-        "Kitty": "",
-        "EchoDeer": ""
+        "EchoDeer": "",
+        "Kitty": ""
     },
     "scale_dict": {
         "ChrisKitty": 1.0,
-        "Kitty": 1.0,
-        "EchoDeer": 1.0
+        "EchoDeer": 1.0,
+        "Kitty": 1.0
     },
     "minipet_scale": {},
     "volume": 0.5,

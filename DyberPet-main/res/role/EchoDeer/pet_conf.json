@@ -25,6 +25,39 @@
       ]
     },
     {
+      "name": "blink",
+      "act_list": [
+        "blink"
+      ],
+      "act_prob": 0.06,
+      "act_type": [
+        2,
+        0
+      ]
+    },
+    {
+      "name": "lazy",
+      "act_list": [
+        "lazy"
+      ],
+      "act_prob": 0.035,
+      "act_type": [
+        2,
+        0
+      ]
+    },
+    {
+      "name": "sad",
+      "act_list": [
+        "sad"
+      ],
+      "act_prob": 0.025,
+      "act_type": [
+        2,
+        0
+      ]
+    },
+    {
       "name": "onfloor",
       "act_list": [
         "onfloor"
