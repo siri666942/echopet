@@ -5,7 +5,7 @@
 
 import json
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -24,8 +24,25 @@ SUPPORTED_EXTENSIONS = {".mp3", ".wav", ".flac"}
 
 
 def initialize_library(db: Session) -> None:
+    normalize_song_file_paths(db)
     scan_music_dir(db)
     backfill_song_features(db)
+
+
+def normalize_song_file_paths(db: Session) -> None:
+    """把历史遗留的 WSL/Docker 路径修正为当前机器可用路径。"""
+
+    changed = False
+    for song in db.query(Song).all():
+        normalized = _normalize_song_file_path(song.file_path)
+        if normalized == song.file_path:
+            continue
+        song.file_path = normalized
+        song.updated_at = datetime.now()
+        changed = True
+
+    if changed:
+        db.commit()
 
 
 def scan_music_dir(db: Session) -> None:
@@ -134,6 +151,41 @@ def _build_song_from_file(db: Session, file_path: Path, next_index: int) -> Song
         created_at=now,
         updated_at=now,
     )
+
+
+def _normalize_song_file_path(raw_path: str) -> str:
+    if not raw_path:
+        return raw_path
+
+    current = Path(raw_path)
+    if current.exists():
+        return str(current.resolve())
+
+    for candidate in _legacy_path_candidates(raw_path):
+        if candidate.exists():
+            return str(candidate.resolve())
+
+    return raw_path
+
+
+def _legacy_path_candidates(raw_path: str) -> list[Path]:
+    candidates: list[Path] = []
+    normalized = str(raw_path).replace("\\", "/")
+
+    # 兼容 WSL 路径：/mnt/c/Users/...
+    posix_path = PurePosixPath(normalized)
+    parts = posix_path.parts
+    if len(parts) >= 4 and parts[1:3] and parts[1] == "mnt" and len(parts[2]) == 1:
+        drive = f"{parts[2].upper()}:"
+        candidates.append(Path(f"{drive}/", *parts[3:]))
+
+    # 兼容 Docker 容器路径：/app/backend/music/xxx.mp3
+    docker_prefix = "/app/backend/music/"
+    if normalized.startswith(docker_prefix):
+        relative = PurePosixPath(normalized.removeprefix(docker_prefix))
+        candidates.append(Path(settings.music_dir) / Path(*relative.parts))
+
+    return candidates
 
 
 def _legacy_energy_from_essentia(features: dict) -> float:

@@ -33,7 +33,6 @@ from frontend.audio_recorder import AudioRecorder
 from frontend.hotkey_listener import EchoPetHotkeyListener
 from frontend.input_panel import InputPanel
 from frontend.keyboard_tracker import KeyboardTracker
-from frontend.local_audio_player import LocalAudioPlayer
 from frontend.player_status_poller import PlayerStatusPoller
 from frontend.state_mapper import map_agent_result, pick_action_for_state
 from frontend.whisper_adapter import WhisperAdapter
@@ -427,7 +426,6 @@ class PetWidget(QWidget):
         self.audio_recorder = None
         self.hotkey_listener = None
         self.keyboard_tracker = None
-        self.local_audio_player = None
         self.player_status_poller = None
         self.current_track = {}
         self.current_playlist = []
@@ -1144,6 +1142,7 @@ class PetWidget(QWidget):
         demo_states = [
             ("Idle", "idle"),
             ("Focus", "focus"),
+            ("Focused Stressed", "focused_stressed"),
             ("Tired", "tired"),
             ("Frustrated", "frustrated"),
             ("Sad", "sad"),
@@ -1201,6 +1200,7 @@ class PetWidget(QWidget):
         mapping = {
             "idle": "待命中",
             "focus": "专注陪伴中",
+            "focused_stressed": "高压陪伴中",
             "tired": "疲惫安抚中",
             "frustrated": "正在帮你缓一缓",
             "sad": "正在安静陪伴",
@@ -1487,9 +1487,8 @@ class PetWidget(QWidget):
         self.audio_recorder = AudioRecorder(self)
         self.keyboard_tracker = KeyboardTracker()
         self.keyboard_tracker.start()
-        self.local_audio_player = LocalAudioPlayer(Path(__file__).resolve().parents[2], self)
-        self.local_audio_player.status_changed.connect(self.update_player_status)
         self.input_panel = InputPanel()
+        self.input_panel.set_debug_tools_visible(True)
         self.input_panel.submit_requested.connect(self.submit_user_text)
         self.input_panel.mock_state_requested.connect(self.apply_mock_state)
         self.input_panel.player_event_requested.connect(self.send_player_event)
@@ -1563,7 +1562,6 @@ class PetWidget(QWidget):
         result = self.agent_client.build_mock_result(text=text, forced_state=state_name)
         result["_mode"] = "mock"
         self.apply_agent_result(result)
-        self.open_input_panel()
 
     def _submit_user_text_async(self, text, input_source):
         keyboard_events = None
@@ -1694,22 +1692,12 @@ class PetWidget(QWidget):
         if self.input_panel:
             self.input_panel.show_agent_result(mapped_result)
 
-        self._play_current_recommendation()
-
         recommendation = mapped_result.get("recommendation") or {}
         if recommendation.get("title"):
             message = self.tr("Ready: ") + recommendation.get("title", "")
             self.register_notification("system", message)
-        if mapped_result.get("debug_mode") == "api" and not self.local_audio_player:
+        if mapped_result.get("debug_mode") == "api":
             self.start_player_status_polling()
-
-    def _play_current_recommendation(self):
-        if not self.local_audio_player or not self.current_track:
-            return
-        if self.current_playlist:
-            self.local_audio_player.set_playlist(self.current_playlist, start_index=0)
-        status_payload = self.local_audio_player.play_track(self.current_track)
-        self.update_player_status(status_payload)
 
     def apply_pet_state(self, state_name):
         acts_config = settings.act_data.allAct_params.get(settings.petname, {})
@@ -1824,10 +1812,7 @@ class PetWidget(QWidget):
         ).start()
 
     def _toggle_pause_playback_async(self):
-        if self.local_audio_player:
-            status_payload = self.local_audio_player.play_current_or_resume()
-        else:
-            status_payload = self.agent_client.toggle_pause()
+        status_payload = self.agent_client.toggle_pause()
         self.player_control_result_ready.emit(status_payload, "pause")
 
     def skip_track(self):
@@ -1844,10 +1829,7 @@ class PetWidget(QWidget):
                 ended_reason="skipped",
             )
             self.current_session_id = ""
-        if self.local_audio_player:
-            status_payload = self.local_audio_player.skip()
-        else:
-            status_payload = self.agent_client.skip_track()
+        status_payload = self.agent_client.skip_track()
         self.player_control_result_ready.emit(status_payload, "skip")
 
     def _handle_player_control_result_ready(self, status_payload, action_name):

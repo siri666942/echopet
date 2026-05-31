@@ -34,6 +34,11 @@ async def player_skip() -> PlayerStatusResponse:
     return PlayerStatusResponse(**player_service.skip_to_next())
 
 
+@router.post("/player/stop", response_model=PlayerStatusResponse)
+async def player_stop() -> PlayerStatusResponse:
+    return PlayerStatusResponse(**player_service.stop())
+
+
 @router.post("/player/event", response_model=PlayerEventResponse)
 async def player_event(
     req: PlayerEventRequest,
