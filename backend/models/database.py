@@ -85,7 +85,8 @@ def _ensure_sqlite_schema() -> None:
         return
 
     inspector = inspect(engine)
-    if "songs" not in inspector.get_table_names():
+    table_names = inspector.get_table_names()
+    if "songs" not in table_names:
         return
 
     existing = {column["name"] for column in inspector.get_columns("songs")}
@@ -105,6 +106,22 @@ def _ensure_sqlite_schema() -> None:
         for name, ddl in song_columns.items():
             if name not in existing:
                 connection.execute(text(f"ALTER TABLE songs ADD COLUMN {name} {ddl}"))
+
+    if "play_sessions" not in table_names:
+        return
+
+    existing_play_session = {
+        column["name"] for column in inspector.get_columns("play_sessions")
+    }
+    play_session_columns = {
+        "keyboard_features_json": "TEXT DEFAULT '{}'",
+        "keyboard_state_json": "TEXT DEFAULT '{}'",
+    }
+
+    with engine.begin() as connection:
+        for name, ddl in play_session_columns.items():
+            if name not in existing_play_session:
+                connection.execute(text(f"ALTER TABLE play_sessions ADD COLUMN {name} {ddl}"))
 
 
 def get_db() -> Generator[Session, None, None]:

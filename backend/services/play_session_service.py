@@ -16,6 +16,8 @@ def create_play_session(
     user_text: str,
     retrieval_query: str,
     context: ContextModel,
+    keyboard_features: dict | None,
+    keyboard_state: dict | None,
     user_profile_snapshot: dict,
     song_id: str,
     playlist: list[Song],
@@ -26,6 +28,8 @@ def create_play_session(
         user_text=user_text,
         retrieval_query=retrieval_query,
         context_json=json.dumps(context.model_dump(), ensure_ascii=False),
+        keyboard_features_json=json.dumps(keyboard_features or {}, ensure_ascii=False),
+        keyboard_state_json=json.dumps(keyboard_state or {}, ensure_ascii=False),
         user_profile_snapshot=json.dumps(user_profile_snapshot, ensure_ascii=False),
         song_id=song_id,
         playlist_json=json.dumps(

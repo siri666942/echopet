@@ -79,6 +79,8 @@ class PlaySession(Base):
     user_text: Mapped[str] = mapped_column(Text, default="")
     retrieval_query: Mapped[str] = mapped_column(Text, default="")
     context_json: Mapped[str] = mapped_column(Text, default="{}")
+    keyboard_features_json: Mapped[str] = mapped_column(Text, default="{}")
+    keyboard_state_json: Mapped[str] = mapped_column(Text, default="{}")
     user_profile_snapshot: Mapped[str] = mapped_column(Text, default="{}")
 
     song_id: Mapped[str] = mapped_column(String, nullable=False)

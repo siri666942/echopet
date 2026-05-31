@@ -59,6 +59,7 @@ env/
 # ===== Logs =====
 *.log
 logs/
+.runtime/
 
 # ===== Audio / Music (用户本地曲库不提交) =====
 backend/music/

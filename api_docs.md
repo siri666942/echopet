@@ -10,7 +10,7 @@
 
 ### Context
 
-环境上下文由后端和前端共同组成。当前 MVP 中键盘指标可以为 0。
+环境上下文由后端和前端共同组成。`kpm` 和 `backspace_ratio` 继续保留兼容旧客户端；新版键盘上下文优先通过 `/api/analyze` 的 `keyboard_events` 传入。
 
 ```json
 {
@@ -29,6 +29,22 @@
 | `active_app` | string | 当前活跃应用 |
 | `kpm` | integer | 每分钟按键数 |
 | `backspace_ratio` | float | 退格比例，范围 0-1 |
+
+### KeyboardEvents
+
+键盘事件是打字状态弱信号，不是情绪识别器。前端只上传匿名键名和时间戳，不上传真实输入文本；普通字符统一记为 `CHAR`。
+
+```json
+{
+  "window_seconds": 60,
+  "active_app": "VSCode",
+  "events": [
+    {"key": "CHAR", "type": "keydown", "timestamp": 1717080000.123},
+    {"key": "CHAR", "type": "keyup", "timestamp": 1717080000.221},
+    {"key": "Backspace", "type": "keydown", "timestamp": 1717080002.000}
+  ]
+}
+```
 
 ### Emotion
 
@@ -142,6 +158,14 @@
     "active_app": "VSCode",
     "kpm": 0,
     "backspace_ratio": 0.0
+  },
+  "keyboard_events": {
+    "window_seconds": 60,
+    "active_app": "VSCode",
+    "events": [
+      {"key": "CHAR", "type": "keydown", "timestamp": 1717080000.123},
+      {"key": "CHAR", "type": "keyup", "timestamp": 1717080000.221}
+    ]
   }
 }
 ```
@@ -238,6 +262,24 @@
 | 404 | `session_id` 不存在 |
 | 422 | 完成率或结束原因格式错误 |
 
+### POST `/api/player/pause`
+
+切换播放器暂停/继续状态。
+
+响应同 `GET /api/player/status`。
+
+### POST `/api/player/skip`
+
+播放当前推荐队列里的下一首歌。
+
+响应同 `GET /api/player/status`。
+
+常见错误：
+
+| 状态码 | 说明 |
+| --- | --- |
+| 404 | 当前播放队列没有下一首 |
+
 ### GET `/api/context`
 
 获取当前环境上下文。
@@ -324,9 +366,17 @@ GET /api/memory?limit=20&offset=0
 2. 前端提交文本：POST /api/analyze
 3. 前端保存响应里的 session_id
 4. 前端展示 current_state、bubble_text、recommendation、playlist
-5. 播放结束或用户点击 KEEP：POST /api/player/event，completion_rate=0.9，ended_reason=finished
-6. 用户点击 SKIP：POST /api/player/event，completion_rate=0.1，ended_reason=skipped
+5. 用户暂停/继续：POST /api/player/pause
+6. 用户切歌：POST /api/player/event 上报 skipped，然后 POST /api/player/skip
 ```
+
+桌宠前端全局快捷键：
+
+| 快捷键 | 动作 |
+| --- | --- |
+| `Ctrl + Alt + 小键盘 1` | 暂停/继续 |
+| `Ctrl + Alt + 小键盘 2` | 切到下一首 |
+| `Ctrl + Alt + 小键盘 3` | 开始/停止语音输入 |
 
 ## 变更记录
 

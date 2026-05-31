@@ -8,6 +8,7 @@ from typing import Dict, Iterable
 DEFAULT_BUBBLES = {
     "idle": "我在这里陪着你。",
     "focus": "先帮你稳住节奏，慢慢进入心流。",
+    "focused_stressed": "先帮你把高强度输出稳住。",
     "tired": "你看起来有点累，我放轻一点的。",
     "frustrated": "先别急，我帮你把状态缓下来。",
     "sad": "没关系，我先陪你待一会儿。",
@@ -16,6 +17,7 @@ DEFAULT_BUBBLES = {
 STATE_ACTION_CANDIDATES = {
     "idle": ["default", "stand"],
     "focus": ["focus", "default", "stand"],
+    "focused_stressed": ["focus", "angry", "default", "stand"],
     "tired": ["sleep", "fall_asleep", "default", "stand"],
     "frustrated": ["angry", "onfloor", "default", "stand"],
     "sad": ["sleep", "onfloor", "default", "stand"],

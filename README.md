@@ -89,7 +89,51 @@ backend/models/essentia/
 
 这些模型文件很大，不提交 git，但会留在你的本地 `backend/models/` 里。以后除非你删了这个目录，否则不用重复准备。
 
-## 日常启动
+## 一键启动/停止
+
+推荐直接用脚本，不用一条条输命令。
+
+一键启动前后端：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/start_echopet.ps1
+```
+
+这个脚本会自动做这些事：
+
+1. 启动 Docker 后端。
+2. 等待 `http://127.0.0.1:8000` 可用。
+3. 检查 `backend/music/` 里的 `.mp3/.wav/.flac` 是否有变化。
+4. 如果曲库有变化，自动执行 `backend.scripts.reindex_music`；没有变化就跳过。
+5. 检查并启动前端桌宠。
+
+如果改了后端代码、Dockerfile 或依赖，需要重新构建镜像：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/start_echopet.ps1 -Build
+```
+
+如果想强制重扫曲库：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/start_echopet.ps1 -ForceReindex
+```
+
+如果第一次跑前端或依赖变了：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/start_echopet.ps1 -InstallFrontendDeps
+```
+
+一键停止前后端：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/stop_echopet.ps1
+```
+
+它会停止脚本启动的前端进程，并停止 Docker 后端容器。
+
+## 手动启动后端
 
 以后如果代码没改，只需要：
 
@@ -109,7 +153,7 @@ docker compose up -d --build
 docker compose ps
 ```
 
-## 停止后端
+## 手动停止后端
 
 临时停止：
 
