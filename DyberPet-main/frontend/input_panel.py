@@ -153,6 +153,13 @@ class InputPanel(QFrame):
         self.editor.setMinimumHeight(52)
         self.editor.setMaximumHeight(64)
         note_layout.addWidget(self.editor)
+        submit_row = QHBoxLayout()
+        submit_row.addStretch()
+        self.submit_button = QPushButton("[ SEND ]")
+        self.submit_button.setObjectName("ActionBtn")
+        self.submit_button.setMinimumHeight(34)
+        submit_row.addWidget(self.submit_button)
+        note_layout.addLayout(submit_row)
         tape_vbox.addWidget(note_strip)
 
         reel_row = QHBoxLayout()
@@ -375,6 +382,7 @@ class InputPanel(QFrame):
         self.min_button.clicked.connect(self.showMinimized)
         self.close_button.clicked.connect(self.hide)
         self.voice_button.clicked.connect(self.record_requested.emit)
+        self.submit_button.clicked.connect(self._emit_submit)
         self.pause_button.clicked.connect(self.pause_requested.emit)
         self.skip_button.clicked.connect(self.skip_requested.emit)
         for widget in (
@@ -389,6 +397,7 @@ class InputPanel(QFrame):
             lcd_panel,
         ):
             widget.installEventFilter(self)
+        self.editor.installEventFilter(self)
 
     def _apply_styles(self) -> None:
         self.setStyleSheet("""
@@ -680,6 +689,7 @@ class InputPanel(QFrame):
         self.pause_button.setEnabled(has_track)
         self.skip_button.setEnabled(has_track and not busy)
         self.voice_button.setEnabled(not busy)
+        self.submit_button.setEnabled(not busy)
         if message:
             self.show_status(message)
 
@@ -687,6 +697,12 @@ class InputPanel(QFrame):
         self.status_label.setText(f"STATUS: {message.upper()}")
 
     def eventFilter(self, watched: object, event: QEvent) -> bool:
+        if watched is self.editor and event.type() == QEvent.KeyPress:
+            key = getattr(event, "key", lambda: None)()
+            modifiers = getattr(event, "modifiers", lambda: Qt.NoModifier)()
+            if key in (Qt.Key_Return, Qt.Key_Enter) and not (modifiers & Qt.ShiftModifier):
+                self._emit_submit()
+                return True
         if event.type() == QEvent.MouseButtonPress and hasattr(event, "button"):
             if event.button() == Qt.LeftButton:
                 self._drag_active = True
@@ -756,5 +772,25 @@ class InputPanel(QFrame):
         if has_track:
             self.match_label.setText(f"♡ EMOTIONAL MATCH             {match_score}%")
         else:
+            self.match_label.setText("♡ EMOTIONAL MATCH             --%")
+
+    def sync_player_status(self, status_payload: dict, session_id: str = "") -> None:
+        track_id = status_payload.get("track_id", "") or ""
+        title = status_payload.get("title", "") or "NO TRACK"
+        artist = status_payload.get("artist", "") or ""
+        status = status_payload.get("status", "idle")
+
+        self._current_track_id = track_id
+        self._current_session_id = session_id if track_id else ""
+
+        if artist:
+            self.track_label.setText(f"{title}\n{artist}")
+        else:
+            self.track_label.setText(title if track_id else "NO TRACK")
+
+        has_track = bool(track_id)
+        self.pause_button.setEnabled(has_track)
+        self.skip_button.setEnabled(has_track)
+        if not has_track and status == "idle":
             self.match_label.setText("♡ EMOTIONAL MATCH             --%")
 

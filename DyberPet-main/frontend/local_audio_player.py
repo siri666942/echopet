@@ -23,8 +23,10 @@ class LocalAudioPlayer(QObject):
         self.index = -1
         self.current_track: Dict = {}
         self.status = "idle"
+        self._transitioning_to_next = False
 
         self.player.playbackStateChanged.connect(self._on_playback_state_changed)
+        self.player.mediaStatusChanged.connect(self._on_media_status_changed)
         self.player.errorOccurred.connect(self._on_error)
 
     def set_playlist(self, playlist: List[Dict], start_index: int = 0) -> None:
@@ -61,9 +63,9 @@ class LocalAudioPlayer(QObject):
 
     def skip(self) -> Dict:
         if self.playlist and self.index + 1 < len(self.playlist):
-            self.index += 1
-            return self.play_track(self.playlist[self.index])
+            return self._play_next_track()
         self.status = "idle"
+        self.current_track = {}
         self.player.stop()
         self._emit_status()
         return self.get_status()
@@ -94,10 +96,25 @@ class LocalAudioPlayer(QObject):
     def _on_playback_state_changed(self, state) -> None:
         if state == QMediaPlayer.PlaybackState.PlayingState:
             self.status = "playing"
+            self._transitioning_to_next = False
         elif state == QMediaPlayer.PlaybackState.PausedState:
             self.status = "paused"
+        elif state == QMediaPlayer.PlaybackState.StoppedState and self._transitioning_to_next:
+            return
         elif state == QMediaPlayer.PlaybackState.StoppedState and self.status != "error":
             self.status = "idle"
+        self._emit_status()
+
+    def _on_media_status_changed(self, status) -> None:
+        if status != QMediaPlayer.MediaStatus.EndOfMedia:
+            return
+
+        if self.playlist and self.index + 1 < len(self.playlist):
+            self._play_next_track()
+            return
+
+        self.status = "idle"
+        self.current_track = {}
         self._emit_status()
 
     def _on_error(self, _error, _message: str = "") -> None:
@@ -106,3 +123,15 @@ class LocalAudioPlayer(QObject):
 
     def _emit_status(self) -> None:
         self.status_changed.emit(self.get_status())
+
+    def _play_next_track(self) -> Dict:
+        if not self.playlist or self.index + 1 >= len(self.playlist):
+            self.status = "idle"
+            self.current_track = {}
+            self.player.stop()
+            self._emit_status()
+            return self.get_status()
+
+        self._transitioning_to_next = True
+        self.index += 1
+        return self.play_track(self.playlist[self.index])

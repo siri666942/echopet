@@ -1624,7 +1624,7 @@ class PetWidget(QWidget):
                 raise RuntimeError(f"后端转写返回为空，source={source}")
             self.transcript_ready.emit(transcript)
         except Exception as exc:
-            self.transcript_failed.emit(str(exc))
+            self.transcript_failed.emit(self._friendly_transcribe_error(str(exc)))
 
     def _handle_transcript_ready(self, transcript):
         self.current_pet_status_text = "文字已准备好"
@@ -1658,6 +1658,14 @@ class PetWidget(QWidget):
                 "timeout": 4,
             }
         )
+
+    def _friendly_transcribe_error(self, message):
+        lowered = (message or "").lower()
+        if "transcribe backend unavailable" in lowered or "faster-whisper" in lowered:
+            return "后端转写模型不可用，请先运行 `scripts/start_backend.ps1 -InstallDeps` 或按 README 使用 Docker 后端。"
+        if "transcript is empty" in lowered or "no speech detected" in lowered:
+            return "没有识别到清晰语音，请靠近麦克风并缩短停顿后重试。"
+        return message
 
     def apply_agent_result(self, result):
         mapped_result = map_agent_result(result)
@@ -1718,12 +1726,23 @@ class PetWidget(QWidget):
     def update_player_status(self, status_payload):
         if not status_payload:
             return
+        previous_track_id = (self.current_track or {}).get("id", "")
+        previous_status = self.current_player_status
+        previous_session_id = self.current_session_id
+
         self.current_track = {
             "id": status_payload.get("track_id", ""),
             "title": status_payload.get("title", ""),
             "artist": status_payload.get("artist", ""),
         }
         self.current_player_status = status_payload.get("status", "idle")
+        self._sync_current_playlist_index()
+        self._maybe_finalize_finished_session(
+            previous_track_id=previous_track_id,
+            previous_status=previous_status,
+            previous_session_id=previous_session_id,
+            status_payload=status_payload,
+        )
         if self.current_player_status == "playing":
             self.current_pet_status_text = "正在陪你听歌"
         elif self.current_player_status == "loading":
@@ -1736,6 +1755,8 @@ class PetWidget(QWidget):
             self.current_pet_status_text = self._friendly_pet_state_label(self.current_agent_state)
         self._refresh_echopet_status_summary()
 
+        if self.input_panel:
+            self.input_panel.sync_player_status(status_payload, self.current_session_id)
         if self.input_panel and self.input_panel.isVisible():
             title = status_payload.get("title", "")
             status = status_payload.get("status", "idle")
@@ -1749,6 +1770,45 @@ class PetWidget(QWidget):
                 self.input_panel.show_status(f"提示: 播放器状态 {status}")
         if status_payload.get("status") in ("idle", "error") and self.player_status_poller:
             self.player_status_poller.stop()
+
+    def _sync_current_playlist_index(self):
+        track_id = (self.current_track or {}).get("id", "")
+        if not track_id or not self.current_playlist:
+            if not track_id:
+                self.current_playlist_index = -1
+            return
+        for index, track in enumerate(self.current_playlist):
+            if track.get("id") == track_id:
+                self.current_playlist_index = index
+                return
+
+    def _maybe_finalize_finished_session(
+        self,
+        previous_track_id,
+        previous_status,
+        previous_session_id,
+        status_payload,
+    ):
+        if not previous_session_id or not previous_track_id:
+            return
+        if previous_status not in {"playing", "paused", "loading"}:
+            return
+
+        new_track_id = status_payload.get("track_id", "") or ""
+        new_status = status_payload.get("status", "idle")
+        should_finish = (
+            bool(new_track_id and new_track_id != previous_track_id)
+            or (new_status == "idle" and not new_track_id)
+        )
+        if not should_finish:
+            return
+
+        self.current_session_id = ""
+        threading.Thread(
+            target=self._send_player_event_silently_async,
+            args=(previous_session_id, 0.95, "finished"),
+            daemon=True,
+        ).start()
 
     def send_player_event(self, session_id, completion_rate, ended_reason):
         threading.Thread(
@@ -1812,7 +1872,15 @@ class PetWidget(QWidget):
             self.input_panel.show_status(f"提示: {label}")
 
     def _send_player_event_async(self, session_id, completion_rate, ended_reason):
+        self._post_player_event(session_id, completion_rate, ended_reason, emit_feedback=True)
+
+    def _send_player_event_silently_async(self, session_id, completion_rate, ended_reason):
+        self._post_player_event(session_id, completion_rate, ended_reason, emit_feedback=False)
+
+    def _post_player_event(self, session_id, completion_rate, ended_reason, emit_feedback):
         response = self.agent_client.send_player_event(session_id, completion_rate, ended_reason)
+        if not emit_feedback:
+            return
         message = response.get("message", "播放事件已上报")
         self.player_event_result_ready.emit(message)
 

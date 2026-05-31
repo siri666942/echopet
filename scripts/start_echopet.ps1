@@ -1,5 +1,7 @@
 param(
     [switch]$Build,
+    [switch]$LocalBackend,
+    [switch]$InstallBackendDeps,
     [switch]$InstallFrontendDeps,
     [switch]$ForceReindex,
     [int]$BackendPort = 8000
@@ -13,6 +15,7 @@ $FrontendRoot = Join-Path $RepoRoot "DyberPet-main"
 $FrontendVenv = Join-Path $FrontendRoot ".venv"
 $FrontendPython = Join-Path $FrontendVenv "Scripts\python.exe"
 $FrontendRequirements = Join-Path $FrontendRoot "requirements.txt"
+$BackendPython = Join-Path $RepoRoot "backend\.venv\Scripts\python.exe"
 $FrontendPidFile = Join-Path $RuntimeDir "frontend.pid"
 $MusicDir = Join-Path $RepoRoot "backend\music"
 $MusicManifestFile = Join-Path $RuntimeDir "music_manifest.sha256"
@@ -77,11 +80,48 @@ function Sync-MusicIndex {
 
     if ($ForceReindex -or $signature -ne $previous) {
         Write-Step "Music library changed, running backend reindex..."
-        docker compose exec -T echopet-backend python -m backend.scripts.reindex_music
+        if ($LocalBackend) {
+            & $BackendPython -m backend.scripts.reindex_music
+        }
+        else {
+            docker compose exec -T echopet-backend python -m backend.scripts.reindex_music
+        }
         Set-Content -LiteralPath $MusicManifestFile -Value $signature -Encoding ASCII
     }
     else {
         Write-Step "Music library unchanged, skipping reindex."
+    }
+}
+
+function Start-Backend {
+    if ($LocalBackend) {
+        Write-Step "Starting local backend..."
+        $backendArgs = @(
+            "-ExecutionPolicy", "Bypass",
+            "-File", (Join-Path $RepoRoot "scripts\start_backend.ps1"),
+            "-Background",
+            "-Port", "$BackendPort"
+        )
+        if ($InstallBackendDeps) {
+            $backendArgs += "-InstallDeps"
+        }
+        Start-Process `
+            -FilePath "powershell" `
+            -ArgumentList $backendArgs `
+            -WorkingDirectory $RepoRoot `
+            -WindowStyle Hidden `
+            -Wait
+        return
+    }
+
+    Ensure-Command "docker" "Install/open Docker Desktop first."
+    if ($Build) {
+        Write-Step "Starting backend with docker compose build..."
+        docker compose up -d --build
+    }
+    else {
+        Write-Step "Starting backend with docker compose..."
+        docker compose up -d
     }
 }
 
@@ -130,19 +170,10 @@ function Start-Frontend {
 }
 
 New-Item -ItemType Directory -Path $RuntimeDir -Force | Out-Null
-Ensure-Command "docker" "Install/open Docker Desktop first."
 
 Push-Location $RepoRoot
 try {
-    if ($Build) {
-        Write-Step "Starting backend with docker compose build..."
-        docker compose up -d --build
-    }
-    else {
-        Write-Step "Starting backend with docker compose..."
-        docker compose up -d
-    }
-
+    Start-Backend
     Wait-Backend -Port $BackendPort
     Write-Step "Backend is ready at http://127.0.0.1:$BackendPort"
 

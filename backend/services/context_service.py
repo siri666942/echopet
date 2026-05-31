@@ -11,7 +11,11 @@
     - backspace_ratio: 前端采集后传入
 """
 
+import json
 from datetime import datetime
+from urllib import error, parse, request
+
+from backend.config import settings
 
 
 def get_current_context(kpm: int = 0, backspace_ratio: float = 0.0) -> dict:
@@ -31,9 +35,11 @@ def get_current_context(kpm: int = 0, backspace_ratio: float = 0.0) -> dict:
     返回字典，API 层再用 ContextModel 做一次校验。
     """
 
+    active_app = get_activitywatch_active_app() or get_active_app()
+
     return {
         "hour": datetime.now().hour,
-        "active_app": get_active_app(),
+        "active_app": active_app,
         "kpm": kpm,
         "backspace_ratio": backspace_ratio,
     }
@@ -61,3 +67,60 @@ def get_active_app() -> str:
         return psutil.Process(pid).name().replace(".exe", "")
     except Exception:
         return "Unknown"
+
+
+def get_activitywatch_active_app() -> str | None:
+    """优先从 ActivityWatch 读取前台窗口对应应用名。
+
+    只读取本机已经运行的 ActivityWatch server；任何错误都静默回退到
+    `get_active_app()`，避免影响现有 MVP 链路。
+    """
+
+    if not settings.enable_activitywatch:
+        return None
+
+    try:
+        bucket_id = _pick_activitywatch_window_bucket()
+        if not bucket_id:
+            return None
+
+        encoded_bucket_id = parse.quote(bucket_id, safe="")
+        events = _activitywatch_get_json(
+            f"/api/0/buckets/{encoded_bucket_id}/events?limit=1"
+        )
+        if not isinstance(events, list) or not events:
+            return None
+
+        data = events[-1].get("data") or {}
+        app_name = str(data.get("app") or "").strip()
+        if app_name:
+            return app_name
+
+        title = str(data.get("title") or "").strip()
+        if title:
+            return title[:120]
+        return None
+    except Exception:
+        return None
+
+
+def _pick_activitywatch_window_bucket() -> str | None:
+    buckets = _activitywatch_get_json("/api/0/buckets/")
+    if isinstance(buckets, dict):
+        bucket_ids = list(buckets.keys())
+    elif isinstance(buckets, list):
+        bucket_ids = [str(item.get("id") or "") for item in buckets]
+    else:
+        bucket_ids = []
+
+    window_buckets = [bucket_id for bucket_id in bucket_ids if "aw-watcher-window" in bucket_id]
+    return sorted(window_buckets)[-1] if window_buckets else None
+
+
+def _activitywatch_get_json(path: str):
+    base_url = settings.activitywatch_base_url.rstrip("/")
+    url = f"{base_url}{path}"
+    req = request.Request(url, headers={"Accept": "application/json"}, method="GET")
+    with request.urlopen(req, timeout=1.5) as response:
+        payload = response.read().decode("utf-8")
+    return json.loads(payload) if payload else {}

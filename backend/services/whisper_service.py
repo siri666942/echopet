@@ -36,6 +36,7 @@ _model = None
 # 记录模型是否加载失败过。
 # 如果失败过，后续就不重复尝试，避免每次请求都卡很久。
 _model_failed = False
+_model_error_message = ""
 
 
 async def transcribe(audio_base64: str, audio_format: str = "wav") -> dict:
@@ -67,8 +68,8 @@ async def transcribe(audio_base64: str, audio_format: str = "wav") -> dict:
 
     model = _get_model()
     if model is None:
-        # faster-whisper 不可用时的兜底返回。
-        return {"transcript": "", "language": "zh", "source": "faster-whisper"}
+        detail = _model_error_message or "faster-whisper unavailable"
+        raise HTTPException(status_code=503, detail=f"transcribe backend unavailable: {detail}")
 
     suffix = f".{audio_format.lstrip('.') or 'wav'}"
     temp_path = None
@@ -82,6 +83,8 @@ async def transcribe(audio_base64: str, audio_format: str = "wav") -> dict:
 
         # segments 是分段转写结果，把每一段文字拼起来。
         transcript = " ".join(segment.text for segment in segments).strip()
+        if not transcript:
+            raise HTTPException(status_code=422, detail="transcript is empty, no speech detected")
         return {
             "transcript": transcript,
             "language": getattr(info, "language", "zh") or "zh",
@@ -103,7 +106,7 @@ def _get_model():
         - 或 None，表示模型不可用
     """
 
-    global _model, _model_failed
+    global _model, _model_failed, _model_error_message
 
     if _model is not None:
         return _model
@@ -119,8 +122,9 @@ def _get_model():
             device=settings.whisper_device,
             compute_type=settings.whisper_compute_type,
         )
-    except Exception:
+    except Exception as exc:
         _model_failed = True
         _model = None
+        _model_error_message = f"faster-whisper import or model init failed: {exc}"
 
     return _model

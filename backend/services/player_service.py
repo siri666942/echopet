@@ -14,7 +14,10 @@
 前端可以看到 error，但后端接口不会 500 崩掉。
 """
 
+from __future__ import annotations
+
 from backend.config import settings
+from backend.services import playlist_service
 
 
 # mpv 播放器实例。
@@ -68,7 +71,6 @@ def play(file_path: str, track_id: str, title: str, artist: str) -> str:
 
         # 真正调用 mpv 播放。
         player.play(file_path)
-        _status = "playing"
     except Exception:
         # 不把异常抛到 API 层。
         # 播放失败只是播放器状态问题，不应该让推荐接口失败。
@@ -109,11 +111,26 @@ def toggle_pause() -> str:
     return _status
 
 
+def skip_to_next() -> dict:
+    """切到播放队列中的下一首。"""
+
+    next_song = playlist_service.get_next_song()
+    if next_song is None:
+        _clear_track()
+        _stop_player()
+        return get_status()
+
+    play(next_song.file_path, next_song.id, next_song.title, next_song.artist)
+    return get_status()
+
+
 def get_status() -> dict:
     """返回当前播放器状态。
 
     `/api/player/status` 会直接调用它。
     """
+
+    _refresh_status_from_player()
 
     return {
         "player": "mpv",
@@ -127,9 +144,10 @@ def get_status() -> dict:
 def reset_for_tests() -> None:
     """测试用：重置播放器内存状态。"""
 
-    global _current_track, _status
+    global _current_track, _status, _player
     _current_track = None
     _status = "idle"
+    _player = None
 
 
 def _get_player():
@@ -160,3 +178,60 @@ def _get_player():
         _player = None
 
     return _player
+
+
+def _refresh_status_from_player() -> None:
+    global _status
+
+    if not settings.enable_mpv or _status == "error":
+        return
+
+    player = _get_player()
+    if player is None:
+        return
+
+    try:
+        is_paused = bool(getattr(player, "pause", False))
+        is_idle = bool(
+            getattr(player, "idle_active", False) or getattr(player, "core_idle", False)
+        )
+    except Exception:
+        _status = "error"
+        return
+
+    if is_paused and _current_track:
+        _status = "paused"
+        return
+
+    if is_idle:
+        if _current_track and _status in {"loading", "playing", "paused"}:
+            if playlist_service.has_next_song():
+                skip_to_next()
+            else:
+                _clear_track()
+                _status = "idle"
+        elif _status != "error":
+            _status = "idle"
+        return
+
+    if _current_track and _status in {"loading", "idle", "paused"}:
+        _status = "playing"
+
+
+def _clear_track() -> None:
+    global _current_track
+    _current_track = None
+
+
+def _stop_player() -> None:
+    global _status
+
+    if settings.enable_mpv:
+        try:
+            player = _get_player()
+            if player is not None:
+                player.stop()
+        except Exception:
+            _status = "error"
+            return
+    _status = "idle"
